@@ -8,7 +8,9 @@ import '../domain/transaction.dart';
 import '../domain/transactions_provider.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
-  const AddTransactionScreen({super.key});
+  const AddTransactionScreen({super.key, this.initialEntry});
+
+  final FinanceEntry? initialEntry;
 
   @override
   ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -22,6 +24,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   EntryType _type = EntryType.expense;
 
   @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialEntry;
+    if (initial != null) {
+      _title.text = initial.title;
+      _amount.text = initial.amount.toStringAsFixed(initial.amount.truncateToDouble() == initial.amount ? 0 : 2);
+      _category = initial.category;
+      _type = initial.type;
+    }
+  }
+
+  @override
   void dispose() {
     _title.dispose();
     _amount.dispose();
@@ -33,7 +47,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nuevo movimiento')),
+      appBar: AppBar(title: Text(widget.initialEntry == null ? 'Nuevo movimiento' : 'Editar movimiento')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
@@ -87,7 +101,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _category,
+                    initialValue: _category,
                     items: const ['Comida', 'Transporte', 'Casa', 'Salud', 'Ocio', 'Ingresos']
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
@@ -118,7 +132,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   DsPrimaryButton(
                     onPressed: _submit,
                     icon: Icons.save_rounded,
-                    label: 'Guardar movimiento',
+                    label: widget.initialEntry == null ? 'Guardar movimiento' : 'Actualizar movimiento',
                   ),
                 ],
               ),
@@ -133,13 +147,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     if (!_formKey.currentState!.validate()) return;
     final amount = double.parse(_amount.text);
 
+    final initial = widget.initialEntry;
+
     ref.read(transactionsProvider.notifier).add(
           FinanceEntry(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            id: initial?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
             title: _title.text.trim(),
             amount: amount,
             category: _category,
-            date: DateTime.now(),
+            date: initial?.date ?? DateTime.now(),
             type: _type,
           ),
         );

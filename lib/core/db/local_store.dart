@@ -22,5 +22,12 @@ class LocalStore {
         type TEXT NOT NULL
       );
     ''');
+
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    ''');
   }
 }
