@@ -85,7 +85,7 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
         backgroundColor: scheme.surfaceContainer,
-        indicatorColor: scheme.secondaryContainer.withOpacity(0.45),
+        indicatorColor: scheme.secondaryContainer.withValues(alpha: 0.45),
         labelTextStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w700)),
       ),
       cardTheme: CardThemeData(
@@ -94,7 +94,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: DsRadius.brLg,
-          side: BorderSide(color: scheme.outlineVariant.withOpacity(0.4)),
+          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(

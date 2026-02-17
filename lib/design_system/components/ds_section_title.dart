@@ -20,7 +20,7 @@ class DsSectionTitle extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: DsSpacing.sm, vertical: DsSpacing.xs - 2),
           decoration: BoxDecoration(
-            color: scheme.primary.withOpacity(0.12),
+            color: scheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(

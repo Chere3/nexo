@@ -26,8 +26,16 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         )
         .toList();
 
-    if (state.isEmpty) {
+    final seeded = _isSeeded();
+
+    if (state.isNotEmpty && !seeded) {
+      _setSeeded();
+      return;
+    }
+
+    if (state.isEmpty && !seeded) {
       _seed();
+      _setSeeded();
       load();
     }
   }
@@ -45,6 +53,25 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
       ],
     );
     load();
+  }
+
+  void remove(String id) {
+    LocalStore.db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+    load();
+  }
+
+  bool _isSeeded() {
+    final rows = LocalStore.db.select(
+      "SELECT value FROM app_meta WHERE key = 'seeded_v1' LIMIT 1",
+    );
+    if (rows.isEmpty) return false;
+    return (rows.first['value'] as String) == 'true';
+  }
+
+  void _setSeeded() {
+    LocalStore.db.execute(
+      "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seeded_v1', 'true')",
+    );
   }
 
   void _seed() {

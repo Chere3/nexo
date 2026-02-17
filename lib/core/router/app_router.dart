@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/transactions/domain/transaction.dart';
 import '../../features/transactions/presentation/add_transaction_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -16,7 +17,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/add',
         name: 'add',
-        builder: (context, state) => const AddTransactionScreen(),
+        builder: (context, state) {
+          final initialEntry = state.extra is FinanceEntry ? state.extra as FinanceEntry : null;
+          return AddTransactionScreen(initialEntry: initialEntry);
+        },
       ),
     ],
   );
