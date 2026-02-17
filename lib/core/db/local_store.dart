@@ -29,5 +29,20 @@ class LocalStore {
         value TEXT NOT NULL
       );
     ''');
+
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_transactions (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        type TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        day_of_month INTEGER,
+        day_of_week INTEGER,
+        next_due_date TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1
+      );
+    ''');
   }
 }

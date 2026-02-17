@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../transactions/domain/recurring_transaction.dart';
+import '../../transactions/domain/recurring_transactions_provider.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
 import '../../../../design_system/components/ds_card.dart';
@@ -29,10 +31,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final income = ref.watch(totalIncomeProvider);
     final expense = ref.watch(totalExpenseProvider);
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
+    final upcomingPayments = ref.watch(upcomingPaymentsProvider);
 
     final pages = [
       _DashboardTab(
         entries: entries,
+        upcomingPayments: upcomingPayments,
         balance: money.format(balance),
         income: money.format(income),
         expense: money.format(expense),
@@ -81,6 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _DashboardTab extends StatelessWidget {
   const _DashboardTab({
     required this.entries,
+    required this.upcomingPayments,
     required this.balance,
     required this.income,
     required this.expense,
@@ -88,6 +93,7 @@ class _DashboardTab extends StatelessWidget {
   });
 
   final List<FinanceEntry> entries;
+  final List<UpcomingPayment> upcomingPayments;
   final String balance;
   final String income;
   final String expense;
@@ -120,6 +126,41 @@ class _DashboardTab extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         SpendingLineChart(entries: entries),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const DsSectionTitle(title: 'Próximos pagos', icon: Icons.schedule_rounded),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (upcomingPayments.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No hay pagos programados en los próximos 30 días.'),
+            ),
+          )
+        else
+          ...upcomingPayments.map<Widget>((p) {
+            final isExpense = p.type == EntryType.expense;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: Icon(isExpense ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded),
+                title: Text(p.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text(
+                  '${p.category} · ${DateFormat.yMMMd('es_MX').format(p.dueDate)} · ${p.frequency == RecurringFrequency.weekly ? 'Semanal' : 'Mensual'}',
+                ),
+                trailing: Text(
+                  '${isExpense ? '-' : '+'}${money.format(p.amount)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: isExpense ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            );
+          }),
         const SizedBox(height: 16),
         Row(
           children: [
