@@ -1,5 +1,10 @@
 # Nexo
 
+[![CI](https://github.com/Chere3/nexo/actions/workflows/ci.yml/badge.svg)](https://github.com/Chere3/nexo/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
+[![Material 3](https://img.shields.io/badge/Material-3-6750A4)](https://m3.material.io)
+
 Nexo is a modern personal finance app built with Flutter and Material Design 3.
 It helps users track expenses/income, monitor budgets, and understand spending trends with clear analytics.
 
@@ -60,6 +65,10 @@ flutter run -d linux
 flutter analyze
 flutter test
 ```
+
+## 🗺️ Roadmap
+
+See the product roadmap in [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## 🤝 Contributing
 
