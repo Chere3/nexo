@@ -127,7 +127,10 @@ class _DashboardTab extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        ...entries.take(10).map((e) => _EntryTile(entry: e, money: money)),
+        if (entries.isEmpty)
+          const _EmptyStateCard()
+        else
+          ...entries.take(10).map((e) => _EntryTile(entry: e, money: money)),
       ],
     );
   }
@@ -319,7 +322,7 @@ class _StatPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(color: bg.withOpacity(0.75), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: bg.withValues(alpha: 0.75), borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           Icon(icon, size: 18),
@@ -339,38 +342,14 @@ class _StatPill extends StatelessWidget {
   }
 }
 
-class _SectionChip extends StatelessWidget {
-  const _SectionChip({required this.label, required this.icon, required this.color});
-
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _EntryTile extends StatelessWidget {
+class _EntryTile extends ConsumerWidget {
   const _EntryTile({required this.entry, required this.money});
 
   final FinanceEntry entry;
   final NumberFormat money;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final isExpense = entry.type == EntryType.expense;
 
@@ -378,6 +357,7 @@ class _EntryTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        onTap: () => context.pushNamed('add', extra: entry),
         leading: CircleAvatar(
           backgroundColor: (isExpense ? scheme.errorContainer : scheme.primaryContainer),
           child: Icon(
@@ -387,9 +367,50 @@ class _EntryTile extends StatelessWidget {
         ),
         title: Text(entry.title, style: const TextStyle(fontWeight: FontWeight.w700)),
         subtitle: Text('${entry.category} · ${DateFormat.yMMMd('es_MX').format(entry.date)}'),
-        trailing: Text(
-          '${isExpense ? '-' : '+'}${money.format(entry.amount)}',
-          style: TextStyle(fontWeight: FontWeight.w900, color: isExpense ? scheme.error : scheme.primary),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${isExpense ? '-' : '+'}${money.format(entry.amount)}',
+              style: TextStyle(fontWeight: FontWeight.w900, color: isExpense ? scheme.error : scheme.primary),
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'edit') {
+                  context.pushNamed('add', extra: entry);
+                } else if (value == 'delete') {
+                  ref.read(transactionsProvider.notifier).remove(entry.id);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Movimiento eliminado')));
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'edit', child: Text('Editar')),
+                PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyStateCard extends StatelessWidget {
+  const _EmptyStateCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Icon(Icons.wallet_outlined, size: 36, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 10),
+            Text('Aún no tienes movimientos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text('Empieza agregando tu primer gasto o ingreso.', style: Theme.of(context).textTheme.bodyMedium),
+          ],
         ),
       ),
     );
