@@ -9,17 +9,18 @@ Product roadmap based on phased delivery.
 - Riverpod + GoRouter
 - Linux run support
 
-## Phase 1 — Core Finance MVP (In progress)
+## Phase 1 — Core Finance MVP ✅
 - [x] Add expense/income
 - [x] Home dashboard (balance + charts)
 - [x] Local persistence (SQLite)
 - [x] Category monthly budget progress
-- [ ] Edit/delete transactions
+- [x] Edit/delete transactions
 - [ ] Better empty/loading/error states
 
-## Phase 2 — Cashew-inspired Power Features
-- [ ] Recurring transactions
-- [ ] Upcoming payments/reminders
+## Phase 2 — Cashew-inspired Power Features (In progress)
+- [x] Recurring transactions (base CRUD)
+- [x] Upcoming payments block (initial)
+- [ ] Upcoming payments/reminders (state + action flow)
 - [ ] Debts and lent/borrowed tracking
 - [ ] Category limits per budget
 - [ ] Multi-account support
@@ -43,6 +44,36 @@ Product roadmap based on phased delivery.
 - [ ] Accessibility audit (contrast, touch targets, semantics)
 - [ ] Contributor onboarding improvements
 - [ ] Release process and changelog automation
+
+---
+
+## ADHD UX Layer (Cross-phase, aligned to roadmap)
+Goal: maximize capture consistency for users with ADHD (low friction, low cognitive load, high habit retention).
+
+### Phase 2 scope (no major module expansion)
+- [ ] Quick Add flow (capture in 10–15s)
+- [ ] Progressive disclosure in forms (minimum required first)
+- [ ] Recurrent templates (rent, subscriptions, payroll, gym)
+- [ ] Clear save confirmation with next execution date
+- [ ] Upcoming list prioritized by urgency: Hoy / Mañana / Esta semana
+- [ ] Undo after create/delete (short snackbar window)
+
+### Phase 3 scope (behavior + adherence)
+- [ ] Lightweight streaks / consistency indicators
+- [ ] Daily check-in prompt (“¿Te faltó registrar algo hoy?”)
+- [ ] Gentle reminders with snooze (non-intrusive)
+- [ ] Insight cards optimized for action, not just analytics
+
+### Phase 5 scope (validation + quality)
+- [ ] ADHD-focused usability review (task completion + time-to-log)
+- [ ] Accessibility conformance pass (WCAG AA + touch ergonomics)
+- [ ] UX copy consistency audit (clear language, low ambiguity)
+
+### Success metrics
+- [ ] Median time-to-log <= 15s
+- [ ] % of days with at least one log (weekly adherence)
+- [ ] % of entries created via Quick Add
+- [ ] Drop-off rate during add flow
 
 ---
 
