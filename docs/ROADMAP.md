@@ -32,12 +32,12 @@ Product roadmap based on phased delivery.
   - [x] `DsSectionCard`
   - [x] `DsListTile`
   - [x] `DsTopAppBar`
-  - [ ] `DsInput` / `DsSelect` expressive variants
+  - [x] `DsInput` / `DsSelect` expressive variants
 - [x] Unify spacing/radius/elevation across core screens (initial pass)
 - [x] Apply expressive pass to Home, Add, Recurring, Debts, Category Limits
-- [ ] Add interactive states consistency (hover/focus/pressed/disabled)
-- [ ] Add expressive motion patterns (enter/exit, list transitions, feedback)
-- [ ] Accessibility guardrails full pass (contrast + touch targets)
+- [x] Add interactive states consistency (hover/focus/pressed/disabled)
+- [x] Add expressive motion patterns (enter/exit, list transitions, feedback)
+- [x] Accessibility guardrails full pass (contrast + touch targets, initial pass)
 
 ## Phase 3 — Analytics & Insights
 - [ ] Date-range filters
@@ -99,5 +99,5 @@ Runs in parallel with feature phases.
 - [x] DS components: top app bar, section card, expressive list tile, scaffold shell
 - [x] Expressive shape + elevation strategy (initial implementation)
 - [ ] Interaction states (hover/focus/pressed) consistency
-- [ ] Motion choreography guide (durations, easing, sequence)
+- [x] Motion choreography guide (durations, easing, sequence)
 - [x] Theming documentation (initial) in `lib/design_system/README.md`

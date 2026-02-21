@@ -37,6 +37,7 @@ class CategoryLimitsScreen extends ConsumerWidget {
             title: entry.key,
             subtitle: 'Límite actual: ${entry.value.toStringAsFixed(0)}',
             trailing: IconButton(
+              tooltip: 'Editar límite de ${entry.key}',
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _editLimit(context, ref, entry.key, entry.value),
             ),

@@ -32,6 +32,7 @@ Base principles aligned to Material 3 Expressive for Flutter.
 - Standard: 250ms
 - Emphasized: 380ms
 - Use motion to clarify state change, never as decoration only.
+- Detailed choreography: `lib/design_system/MOTION.md`
 
 ## 6) Accessibility guardrails
 - Keep high contrast using M3 on-colors.

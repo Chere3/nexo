@@ -5,9 +5,11 @@ import 'package:intl/intl.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_empty_state.dart';
 import '../../../design_system/components/ds_feature_header.dart';
+import '../../../design_system/components/ds_input.dart';
 import '../../../design_system/components/ds_list_tile.dart';
 import '../../../design_system/components/ds_primary_button.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
+import '../../../design_system/components/ds_select.dart';
 import '../domain/recurring_transaction.dart';
 import '../domain/recurring_transactions_provider.dart';
 import '../domain/transaction.dart';
@@ -76,16 +78,18 @@ class _RecurringTransactionsScreenState extends ConsumerState<RecurringTransacti
                         .toList(),
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
+                  DsInput(
                     controller: _title,
-                    decoration: const InputDecoration(labelText: 'Concepto'),
+                    label: 'Concepto',
+                    icon: Icons.edit_note_rounded,
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa un concepto' : null,
                   ),
                   const SizedBox(height: 10),
-                  TextFormField(
+                  DsInput(
                     controller: _amount,
+                    label: 'Monto',
+                    icon: Icons.attach_money_rounded,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Monto'),
                     validator: (v) {
                       final n = double.tryParse(v ?? '');
                       if (n == null || n <= 0) return 'Monto inválido';
@@ -93,13 +97,14 @@ class _RecurringTransactionsScreenState extends ConsumerState<RecurringTransacti
                     },
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: _category,
+                  DsSelect<String>(
+                    value: _category,
+                    label: 'Categoría',
+                    icon: Icons.category_outlined,
                     items: _categories
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setState(() => _category = v ?? 'Comida'),
-                    decoration: const InputDecoration(labelText: 'Categoría'),
                   ),
                   const SizedBox(height: 10),
                   SegmentedButton<EntryType>(
@@ -121,17 +126,20 @@ class _RecurringTransactionsScreenState extends ConsumerState<RecurringTransacti
                   ),
                   const SizedBox(height: 10),
                   if (_frequency == RecurringFrequency.monthly)
-                    DropdownButtonFormField<int>(
-                      initialValue: _monthlyDay,
+                    DsSelect<int>(
+                      value: _monthlyDay,
+                      label: 'Día de cobro/pago',
+                      icon: Icons.calendar_month_rounded,
                       items: List.generate(31, (i) => i + 1)
                           .map((d) => DropdownMenuItem(value: d, child: Text('Día $d del mes')))
                           .toList(),
                       onChanged: (v) => setState(() => _monthlyDay = v ?? 1),
-                      decoration: const InputDecoration(labelText: 'Día de cobro/pago'),
                     )
                   else
-                    DropdownButtonFormField<int>(
-                      initialValue: _weeklyDay,
+                    DsSelect<int>(
+                      value: _weeklyDay,
+                      label: 'Día de la semana',
+                      icon: Icons.event_repeat_rounded,
                       items: const [
                         DropdownMenuItem(value: DateTime.monday, child: Text('Lunes')),
                         DropdownMenuItem(value: DateTime.tuesday, child: Text('Martes')),
@@ -142,7 +150,6 @@ class _RecurringTransactionsScreenState extends ConsumerState<RecurringTransacti
                         DropdownMenuItem(value: DateTime.sunday, child: Text('Domingo')),
                       ],
                       onChanged: (v) => setState(() => _weeklyDay = v ?? DateTime.monday),
-                      decoration: const InputDecoration(labelText: 'Día de la semana'),
                     ),
                   const SizedBox(height: 14),
                   DsPrimaryButton(
