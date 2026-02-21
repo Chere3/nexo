@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../design_system/components/ds_card.dart';
+import '../../../design_system/components/ds_feature_header.dart';
 import '../../../design_system/components/ds_primary_button.dart';
+import '../domain/currency.dart';
 import '../domain/transaction.dart';
 import '../domain/transactions_provider.dart';
 
@@ -21,6 +23,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _title = TextEditingController();
   final _amount = TextEditingController();
   String _category = 'Comida';
+  String _account = 'Efectivo';
+  String _currency = 'MXN';
   EntryType _type = EntryType.expense;
 
   @override
@@ -31,6 +35,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _title.text = initial.title;
       _amount.text = initial.amount.toStringAsFixed(initial.amount.truncateToDouble() == initial.amount ? 0 : 2);
       _category = initial.category;
+      _account = initial.account;
+      _currency = initial.currency;
       _type = initial.type;
     }
   }
@@ -44,31 +50,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: Text(widget.initialEntry == null ? 'Nuevo movimiento' : 'Editar movimiento')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [scheme.secondaryContainer, scheme.primaryContainer],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Registra un movimiento', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text('Mantén tus finanzas al día con registros rápidos.', style: Theme.of(context).textTheme.bodyMedium),
-              ],
-            ),
+          const DsFeatureHeader(
+            title: 'Registra un movimiento',
+            subtitle: 'Mantén tus finanzas al día con registros rápidos.',
+            icon: Icons.edit_note_rounded,
           ),
           const SizedBox(height: 16),
           DsCard(
@@ -109,6 +99,30 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Categoría',
                       prefixIcon: Icon(Icons.category_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _account,
+                    items: const ['Efectivo', 'Débito', 'Crédito', 'Ahorros']
+                        .map((a) => DropdownMenuItem(value: a, child: Text(a)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _account = v ?? 'Efectivo'),
+                    decoration: const InputDecoration(
+                      labelText: 'Cuenta',
+                      prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _currency,
+                    items: supportedCurrencies
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _currency = v ?? 'MXN'),
+                    decoration: const InputDecoration(
+                      labelText: 'Moneda',
+                      prefixIcon: Icon(Icons.currency_exchange_rounded),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -157,6 +171,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             category: _category,
             date: initial?.date ?? DateTime.now(),
             type: _type,
+            account: _account,
+            currency: _currency,
           ),
         );
 

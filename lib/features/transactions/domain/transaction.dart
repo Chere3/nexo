@@ -8,6 +8,8 @@ class FinanceEntry {
     required this.category,
     required this.date,
     required this.type,
+    this.account = 'Efectivo',
+    this.currency = 'MXN',
   });
 
   final String id;
@@ -16,4 +18,6 @@ class FinanceEntry {
   final String category;
   final DateTime date;
   final EntryType type;
+  final String account;
+  final String currency;
 }
