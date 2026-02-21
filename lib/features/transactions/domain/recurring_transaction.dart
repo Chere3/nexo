@@ -31,6 +31,7 @@ class RecurringTransaction {
 class UpcomingPayment {
   UpcomingPayment({
     required this.id,
+    required this.recurringId,
     required this.title,
     required this.amount,
     required this.category,
@@ -40,6 +41,7 @@ class UpcomingPayment {
   });
 
   final String id;
+  final String recurringId;
   final String title;
   final double amount;
   final String category;

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/local_store.dart';
+import 'currency.dart';
 import 'transaction.dart';
 
 class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
@@ -10,7 +11,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
 
   void load() {
     final rows = LocalStore.db.select(
-      'SELECT id, title, amount, category, date, type FROM transactions ORDER BY date DESC',
+      'SELECT id, title, amount, category, date, type, account, currency FROM transactions ORDER BY date DESC',
     );
 
     state = rows
@@ -22,6 +23,8 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
             category: r['category'] as String,
             date: DateTime.parse(r['date'] as String),
             type: (r['type'] as String) == 'income' ? EntryType.income : EntryType.expense,
+            account: (r['account'] as String?) ?? 'Efectivo',
+            currency: (r['currency'] as String?) ?? 'MXN',
           ),
         )
         .toList();
@@ -42,7 +45,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
 
   void add(FinanceEntry entry) {
     LocalStore.db.execute(
-      'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         entry.id,
         entry.title,
@@ -50,6 +53,8 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         entry.category,
         entry.date.toIso8601String(),
         entry.type == EntryType.income ? 'income' : 'expense',
+        entry.account,
+        entry.currency,
       ],
     );
     load();
@@ -84,6 +89,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         category: 'Comida',
         date: now.subtract(const Duration(days: 1)),
         type: EntryType.expense,
+        account: 'Débito',
       ),
       FinanceEntry(
         id: '2',
@@ -92,6 +98,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         category: 'Transporte',
         date: now.subtract(const Duration(days: 1)),
         type: EntryType.expense,
+        account: 'Crédito',
       ),
       FinanceEntry(
         id: '3',
@@ -100,6 +107,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         category: 'Ingresos',
         date: now.subtract(const Duration(days: 2)),
         type: EntryType.income,
+        account: 'Débito',
       ),
       FinanceEntry(
         id: '4',
@@ -108,12 +116,13 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         category: 'Comida',
         date: now.subtract(const Duration(days: 3)),
         type: EntryType.expense,
+        account: 'Efectivo',
       ),
     ];
 
     for (final entry in seed) {
       LocalStore.db.execute(
-        'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [
           entry.id,
           entry.title,
@@ -121,6 +130,8 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
           entry.category,
           entry.date.toIso8601String(),
           entry.type == EntryType.income ? 'income' : 'expense',
+          entry.account,
+          entry.currency,
         ],
       );
     }
@@ -149,16 +160,6 @@ final balanceProvider = Provider<double>((ref) {
   return ref.watch(totalIncomeProvider) - ref.watch(totalExpenseProvider);
 });
 
-final monthlyCategoryBudgetsProvider = Provider<Map<String, double>>((ref) {
-  return {
-    'Comida': 4500,
-    'Transporte': 2000,
-    'Casa': 7000,
-    'Salud': 1800,
-    'Ocio': 2500,
-  };
-});
-
 final spentByCategoryProvider = Provider<Map<String, double>>((ref) {
   final entries = ref.watch(transactionsProvider);
   final now = DateTime.now();
@@ -167,7 +168,7 @@ final spentByCategoryProvider = Provider<Map<String, double>>((ref) {
   for (final e in entries) {
     if (e.type != EntryType.expense) continue;
     if (e.date.year != now.year || e.date.month != now.month) continue;
-    map[e.category] = (map[e.category] ?? 0) + e.amount;
+    map[e.category] = (map[e.category] ?? 0) + toMxn(e.amount, e.currency);
   }
   return map;
 });

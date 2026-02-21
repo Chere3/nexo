@@ -36,10 +36,98 @@ class RecurringTransactionsNotifier extends StateNotifier<List<RecurringTransact
         )
         .toList();
 
-    if (state.isEmpty) {
+    final seeded = _isSeeded();
+    if (state.isEmpty && !seeded) {
       _seedDefaults();
+      _setSeeded();
       load();
     }
+  }
+
+  void add(RecurringTransaction entry) {
+    LocalStore.db.execute(
+      '''
+      INSERT OR REPLACE INTO recurring_transactions
+      (id, title, amount, category, type, frequency, day_of_month, day_of_week, next_due_date, active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ''',
+      [
+        entry.id,
+        entry.title,
+        entry.amount,
+        entry.category,
+        entry.type == EntryType.income ? 'income' : 'expense',
+        entry.frequency == RecurringFrequency.weekly ? 'weekly' : 'monthly',
+        entry.dayOfMonth,
+        entry.dayOfWeek,
+        entry.nextDueDate.toIso8601String(),
+        entry.active ? 1 : 0,
+      ],
+    );
+
+    load();
+  }
+
+  void remove(String id) {
+    LocalStore.db.execute('DELETE FROM recurring_transactions WHERE id = ?', [id]);
+    load();
+  }
+
+  RecurringTransaction? findById(String id) {
+    try {
+      return state.firstWhere((item) => item.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void completeOccurrence(String recurringId, {DateTime? completionDate}) {
+    final recurring = findById(recurringId);
+    if (recurring == null) return;
+
+    final base = completionDate ?? DateTime.now();
+    final next = _nextOccurrenceAfter(recurring, base);
+
+    LocalStore.db.execute(
+      'UPDATE recurring_transactions SET next_due_date = ? WHERE id = ?',
+      [next.toIso8601String(), recurringId],
+    );
+
+    load();
+  }
+
+  void snooze(String recurringId, {int days = 1}) {
+    final recurring = findById(recurringId);
+    if (recurring == null) return;
+
+    final current = DateTime(
+      recurring.nextDueDate.year,
+      recurring.nextDueDate.month,
+      recurring.nextDueDate.day,
+    );
+
+    final next = current.add(Duration(days: days));
+
+    LocalStore.db.execute(
+      'UPDATE recurring_transactions SET next_due_date = ? WHERE id = ?',
+      [next.toIso8601String(), recurringId],
+    );
+
+    load();
+  }
+
+  bool _isSeeded() {
+    final rows = LocalStore.db.select(
+      "SELECT value FROM app_meta WHERE key = 'seeded_recurring_v1' LIMIT 1",
+    );
+    if (rows.isEmpty) return false;
+    return (rows.first['value'] as String) == 'true';
+  }
+
+  void _setSeeded() {
+    LocalStore.db.execute(
+      "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seeded_recurring_v1', 'true')",
+    );
   }
 
   void _seedDefaults() {
@@ -97,7 +185,8 @@ final recurringTransactionsProvider =
 final upcomingPaymentsProvider = Provider<List<UpcomingPayment>>((ref) {
   final recurring = ref.watch(recurringTransactionsProvider);
   final now = DateTime.now();
-  final end = now.add(const Duration(days: 30));
+  final start = DateTime(now.year, now.month, now.day);
+  final end = start.add(const Duration(days: 30));
 
   final upcoming = <UpcomingPayment>[];
 
@@ -105,10 +194,11 @@ final upcomingPaymentsProvider = Provider<List<UpcomingPayment>>((ref) {
     DateTime date = DateTime(r.nextDueDate.year, r.nextDueDate.month, r.nextDueDate.day);
 
     while (!date.isAfter(end)) {
-      if (!date.isBefore(DateTime(now.year, now.month, now.day))) {
+      if (!date.isBefore(start)) {
         upcoming.add(
           UpcomingPayment(
             id: '${r.id}-${date.toIso8601String()}',
+            recurringId: r.id,
             title: r.title,
             amount: r.amount,
             category: r.category,
@@ -123,9 +213,8 @@ final upcomingPaymentsProvider = Provider<List<UpcomingPayment>>((ref) {
         date = date.add(const Duration(days: 7));
       } else {
         final nextMonth = DateTime(date.year, date.month + 1, 1);
-        final dom = r.dayOfMonth ?? date.day;
-        final safeDay = dom > 28 ? 28 : dom;
-        date = DateTime(nextMonth.year, nextMonth.month, safeDay);
+        final desiredDay = r.dayOfMonth ?? date.day;
+        date = _monthlyDate(nextMonth.year, nextMonth.month, desiredDay);
       }
     }
   }
@@ -133,3 +222,34 @@ final upcomingPaymentsProvider = Provider<List<UpcomingPayment>>((ref) {
   upcoming.sort((a, b) => a.dueDate.compareTo(b.dueDate));
   return upcoming.take(6).toList();
 });
+
+DateTime _monthlyDate(int year, int month, int desiredDay) {
+  final safeDay = desiredDay.clamp(1, 31);
+  final maxDay = _daysInMonth(year, month);
+  return DateTime(year, month, safeDay > maxDay ? maxDay : safeDay);
+}
+
+int _daysInMonth(int year, int month) {
+  if (month == 12) return 31;
+  return DateTime(year, month + 1, 0).day;
+}
+
+DateTime _nextOccurrenceAfter(RecurringTransaction recurring, DateTime baseDate) {
+  final dayBase = DateTime(baseDate.year, baseDate.month, baseDate.day);
+
+  if (recurring.frequency == RecurringFrequency.weekly) {
+    final targetDow = recurring.dayOfWeek ?? dayBase.weekday;
+    final delta = (targetDow - dayBase.weekday) % 7;
+    final safeDelta = delta == 0 ? 7 : delta;
+    return dayBase.add(Duration(days: safeDelta));
+  }
+
+  final targetDay = recurring.dayOfMonth ?? dayBase.day;
+  var candidate = _monthlyDate(dayBase.year, dayBase.month, targetDay);
+
+  if (!candidate.isAfter(dayBase)) {
+    candidate = _monthlyDate(dayBase.year, dayBase.month + 1, targetDay);
+  }
+
+  return candidate;
+}
