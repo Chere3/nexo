@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
 import '../../transactions/domain/currency.dart';
 import '../../transactions/domain/debts_provider.dart';
@@ -554,28 +555,45 @@ class _AnalyticsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final monthly = entries
+    final range = ref.watch(analyticsRangeProvider);
+    final (start, end) = analyticsRangeToDates(range);
+
+    final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end));
+
+    final totalExpense = filtered
         .where((e) => e.type == EntryType.expense)
-        .where((e) => e.date.year == DateTime.now().year && e.date.month == DateTime.now().month)
         .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
-    final weekly = entries
-        .where((e) => e.type == EntryType.expense)
-        .where((e) => e.date.isAfter(DateTime.now().subtract(const Duration(days: 7))))
+    final totalIncome = filtered
+        .where((e) => e.type == EntryType.income)
         .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
 
     final budgets = ref.watch(monthlyCategoryBudgetsProvider);
-    final spent = ref.watch(spentByCategoryProvider);
+    final spent = <String, double>{};
+    for (final e in filtered) {
+      if (e.type != EntryType.expense) continue;
+      spent[e.category] = (spent[e.category] ?? 0) + toMxn(e.amount, e.currency);
+    }
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        SegmentedButton<AnalyticsRangePreset>(
+          segments: const [
+            ButtonSegment(value: AnalyticsRangePreset.last7, label: Text('7d')),
+            ButtonSegment(value: AnalyticsRangePreset.last30, label: Text('30d')),
+            ButtonSegment(value: AnalyticsRangePreset.monthToDate, label: Text('Mes')),
+          ],
+          selected: {range},
+          onSelectionChanged: (v) => ref.read(analyticsRangeProvider.notifier).state = v.first,
+        ),
+        const SizedBox(height: 12),
         DsCard(
           child: Row(
             children: [
-              Expanded(child: _MetricTile(label: 'Gasto semanal', value: money.format(weekly))),
+              Expanded(child: _MetricTile(label: 'Gasto periodo', value: money.format(totalExpense))),
               const SizedBox(width: 10),
-              Expanded(child: _MetricTile(label: 'Gasto mensual', value: money.format(monthly))),
+              Expanded(child: _MetricTile(label: 'Ingreso periodo', value: money.format(totalIncome))),
             ],
           ),
         ),
@@ -584,24 +602,24 @@ class _AnalyticsTab extends StatelessWidget {
           title: 'Comparativo de gasto',
           child: Builder(
             builder: (context) {
-              final max = (monthly > weekly ? monthly : weekly);
-              final weeklyRatio = max <= 0 ? 0.0 : (weekly / max).clamp(0.0, 1.0);
-              final monthlyRatio = max <= 0 ? 0.0 : (monthly / max).clamp(0.0, 1.0);
+              final max = (totalIncome > totalExpense ? totalIncome : totalExpense);
+              final incomeRatio = max <= 0 ? 0.0 : (totalIncome / max).clamp(0.0, 1.0);
+              final expenseRatio = max <= 0 ? 0.0 : (totalExpense / max).clamp(0.0, 1.0);
 
               return Column(
                 children: [
                   _ComparisonBar(
-                    label: 'Semana',
-                    value: money.format(weekly),
-                    ratio: weeklyRatio,
-                    color: Theme.of(context).colorScheme.tertiary,
+                    label: 'Ingresos',
+                    value: money.format(totalIncome),
+                    ratio: incomeRatio,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(height: 12),
                   _ComparisonBar(
-                    label: 'Mes',
-                    value: money.format(monthly),
-                    ratio: monthlyRatio,
-                    color: Theme.of(context).colorScheme.primary,
+                    label: 'Gastos',
+                    value: money.format(totalExpense),
+                    ratio: expenseRatio,
+                    color: Theme.of(context).colorScheme.tertiary,
                   ),
                 ],
               );
