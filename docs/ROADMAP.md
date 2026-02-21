@@ -15,30 +15,29 @@ Product roadmap based on phased delivery.
 - [x] Local persistence (SQLite)
 - [x] Category monthly budget progress
 - [x] Edit/delete transactions
-- [ ] Better empty/loading/error states
+- [x] Better empty/loading/error states
 
-## Phase 2 — Cashew-inspired Power Features (In progress)
+## Phase 2 — Cashew-inspired Power Features ✅
 - [x] Recurring transactions (base CRUD)
-- [x] Upcoming payments block (initial)
-- [ ] Upcoming payments/reminders (state + action flow)
-- [ ] Debts and lent/borrowed tracking
-- [ ] Category limits per budget
-- [ ] Multi-account support
-- [ ] Multi-currency support
+- [x] Upcoming payments/reminders (state + action flow)
+- [x] Debts and lent/borrowed tracking
+- [x] Category limits per budget
+- [x] Multi-account support
+- [x] Multi-currency support (base)
 
-## Phase 2.5 — Material 3 Expressive System (Next)
-- [ ] Define Expressive UI principles for Nexo (shape, type, motion, hierarchy)
-- [ ] Build shared expressive components:
-  - [ ] `DsScreenScaffold`
-  - [ ] `DsSectionCard`
-  - [ ] `DsListTile`
-  - [ ] `DsTopAppBar`
+## Phase 2.5 — Material 3 Expressive System (In progress)
+- [x] Define Expressive UI principles for Nexo (shape, type, hierarchy)
+- [x] Build shared expressive components:
+  - [x] `DsScreenScaffold`
+  - [x] `DsSectionCard`
+  - [x] `DsListTile`
+  - [x] `DsTopAppBar`
   - [ ] `DsInput` / `DsSelect` expressive variants
-- [ ] Unify spacing/radius/elevation across all core screens
-- [ ] Apply expressive pass to Home, Add, Recurring, Debts, Category Limits
+- [x] Unify spacing/radius/elevation across core screens (initial pass)
+- [x] Apply expressive pass to Home, Add, Recurring, Debts, Category Limits
 - [ ] Add interactive states consistency (hover/focus/pressed/disabled)
 - [ ] Add expressive motion patterns (enter/exit, list transitions, feedback)
-- [ ] Accessibility guardrails for expressive UI (contrast + touch targets)
+- [ ] Accessibility guardrails full pass (contrast + touch targets)
 
 ## Phase 3 — Analytics & Insights
 - [ ] Date-range filters
@@ -65,11 +64,11 @@ Product roadmap based on phased delivery.
 Goal: maximize capture consistency for users with ADHD (low friction, low cognitive load, high habit retention).
 
 ### Phase 2 scope (no major module expansion)
-- [ ] Quick Add flow (capture in 10–15s)
+- [x] Quick Add flow (capture in 10–15s)
 - [ ] Progressive disclosure in forms (minimum required first)
-- [ ] Recurrent templates (rent, subscriptions, payroll, gym)
-- [ ] Clear save confirmation with next execution date
-- [ ] Upcoming list prioritized by urgency: Hoy / Mañana / Esta semana
+- [x] Recurrent templates (rent, subscriptions, payroll, gym)
+- [x] Clear save confirmation with next execution date
+- [x] Upcoming list prioritized by urgency: Hoy / Mañana / Esta semana
 - [ ] Undo after create/delete (short snackbar window)
 
 ### Phase 3 scope (behavior + adherence)
@@ -97,8 +96,8 @@ Runs in parallel with feature phases.
 - [x] DS tokens: spacing, radius, motion, typography
 - [x] DS components: section title, card, primary button
 - [x] DS components: feature header, stat card, empty state
-- [ ] DS components: top app bar, section card, expressive list tile, scaffold shell
-- [ ] Expressive shape + elevation strategy documentation
+- [x] DS components: top app bar, section card, expressive list tile, scaffold shell
+- [x] Expressive shape + elevation strategy (initial implementation)
 - [ ] Interaction states (hover/focus/pressed) consistency
 - [ ] Motion choreography guide (durations, easing, sequence)
-- [ ] Theming documentation with examples
+- [x] Theming documentation (initial) in `lib/design_system/README.md`
