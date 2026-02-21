@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -558,7 +559,19 @@ class _AnalyticsTab extends StatelessWidget {
     final range = ref.watch(analyticsRangeProvider);
     final (start, end) = analyticsRangeToDates(range);
 
-    final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end));
+    final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end)).toList();
+
+    ({double income, double expense, double net}) periodTotals(AnalyticsRangePreset preset) {
+      final (ps, pe) = analyticsRangeToDates(preset);
+      final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
+      final income = period
+          .where((e) => e.type == EntryType.income)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      final expense = period
+          .where((e) => e.type == EntryType.expense)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      return (income: income, expense: expense, net: income - expense);
+    }
 
     final totalExpense = filtered
         .where((e) => e.type == EntryType.expense)
@@ -571,7 +584,7 @@ class _AnalyticsTab extends StatelessWidget {
     final prevEnd = start.subtract(const Duration(seconds: 1));
     final prevStart = DateTime(prevEnd.year, prevEnd.month, prevEnd.day).subtract(Duration(days: days - 1));
 
-    final previous = entries.where((e) => !e.date.isBefore(prevStart) && !e.date.isAfter(prevEnd));
+    final previous = entries.where((e) => !e.date.isBefore(prevStart) && !e.date.isAfter(prevEnd)).toList();
 
     final prevExpense = previous
         .where((e) => e.type == EntryType.expense)
@@ -588,19 +601,72 @@ class _AnalyticsTab extends StatelessWidget {
     }
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
+    final dayCount = end.difference(start).inDays + 1;
+    final dayBuckets = List.generate(dayCount, (i) => DateTime(start.year, start.month, start.day + i));
+
+    final incomeSeries = <double>[];
+    final expenseSeries = <double>[];
+    final netSeries = <double>[];
+
+    for (final day in dayBuckets) {
+      final inDay = filtered
+          .where((e) => e.type == EntryType.income)
+          .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
+          .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+      final outDay = filtered
+          .where((e) => e.type == EntryType.expense)
+          .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
+          .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+
+      incomeSeries.add(inDay);
+      expenseSeries.add(outDay);
+      netSeries.add(inDay - outDay);
+    }
+
+    final currentByCategory = <String, double>{};
+    final prevByCategory = <String, double>{};
+
+    for (final e in filtered.where((e) => e.type == EntryType.expense)) {
+      currentByCategory[e.category] = (currentByCategory[e.category] ?? 0) + toMxn(e.amount, e.currency);
+    }
+    for (final e in previous.where((e) => e.type == EntryType.expense)) {
+      prevByCategory[e.category] = (prevByCategory[e.category] ?? 0) + toMxn(e.amount, e.currency);
+    }
+
+    final trendCategories = currentByCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        SegmentedButton<AnalyticsRangePreset>(
-          segments: const [
-            ButtonSegment(value: AnalyticsRangePreset.last7, label: Text('7d')),
-            ButtonSegment(value: AnalyticsRangePreset.last30, label: Text('30d')),
-            ButtonSegment(value: AnalyticsRangePreset.monthToDate, label: Text('Mes')),
-          ],
-          selected: {range},
-          onSelectionChanged: (v) => ref.read(analyticsRangeProvider.notifier).state = v.first,
+        Text('Periodos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final preset in AnalyticsRangePreset.values) ...[
+                _PeriodOverviewCard(
+                  label: switch (preset) {
+                    AnalyticsRangePreset.last7 => '7 días',
+                    AnalyticsRangePreset.last30 => '30 días',
+                    AnalyticsRangePreset.monthToDate => 'Mes',
+                  },
+                  totals: periodTotals(preset),
+                  selected: preset == range,
+                  onTap: () => ref.read(analyticsRangeProvider.notifier).state = preset,
+                ),
+                const SizedBox(width: 10),
+              ],
+            ],
+          ),
         ),
         const SizedBox(height: 12),
+        Text(
+          'Detalle: ${switch (range) { AnalyticsRangePreset.last7 => 'Últimos 7 días', AnalyticsRangePreset.last30 => 'Últimos 30 días', AnalyticsRangePreset.monthToDate => 'Mes actual' }}',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
         DsCard(
           child: Row(
             children: [
@@ -652,6 +718,53 @@ class _AnalyticsTab extends StatelessWidget {
               );
             },
           ),
+        ),
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Cashflow del periodo',
+          child: _CashflowTrendChart(
+            days: dayBuckets,
+            incomeSeries: incomeSeries,
+            expenseSeries: expenseSeries,
+            netSeries: netSeries,
+          ),
+        ),
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Tendencia por categoría',
+          child: trendCategories.isEmpty
+              ? const Text('Sin suficientes datos para tendencia de categorías.')
+              : Column(
+                  children: trendCategories.take(5).map((item) {
+                    final prev = prevByCategory[item.key] ?? 0;
+                    final change = prev == 0 ? null : ((item.value - prev) / prev) * 100;
+                    final up = (change ?? 0) > 0;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(item.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          Text(money.format(item.value)),
+                          const SizedBox(width: 8),
+                          Text(
+                            change == null
+                                ? 'nuevo'
+                                : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: change == null
+                                  ? Theme.of(context).colorScheme.secondary
+                                  : (up ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
         ),
         const SizedBox(height: 12),
         DsSectionCard(
@@ -727,6 +840,163 @@ class _AnalyticsTab extends StatelessWidget {
   }
 }
 
+class _PeriodOverviewCard extends StatelessWidget {
+  const _PeriodOverviewCard({
+    required this.label,
+    required this.totals,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final ({double income, double expense, double net}) totals;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final money = NumberFormat.compactCurrency(locale: 'es_MX', symbol: r'$');
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 170,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: selected ? scheme.primaryContainer : scheme.surfaceContainer,
+          border: Border.all(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text('Neto ${money.format(totals.net)}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text('↑ ${money.format(totals.income)}', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.primary)),
+            Text('↓ ${money.format(totals.expense)}', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.error)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CashflowTrendChart extends StatelessWidget {
+  const _CashflowTrendChart({
+    required this.days,
+    required this.incomeSeries,
+    required this.expenseSeries,
+    required this.netSeries,
+  });
+
+  final List<DateTime> days;
+  final List<double> incomeSeries;
+  final List<double> expenseSeries;
+  final List<double> netSeries;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final maxAbs = [
+      ...incomeSeries,
+      ...expenseSeries,
+      ...netSeries.map((e) => e.abs()),
+    ].fold<double>(0, (m, v) => v.abs() > m ? v.abs() : m);
+
+    if (maxAbs == 0) {
+      return const SizedBox(height: 120, child: Center(child: Text('Sin movimientos en el rango')));
+    }
+
+    final upper = maxAbs * 1.2;
+    final interval = upper <= 0 ? 1.0 : upper / 2;
+
+    return SizedBox(
+      height: 220,
+      child: BarChart(
+        BarChartData(
+          minY: -upper,
+          maxY: upper,
+          groupsSpace: 10,
+          alignment: BarChartAlignment.spaceAround,
+          barTouchData: BarTouchData(enabled: false),
+          borderData: FlBorderData(show: false),
+          gridData: FlGridData(
+            drawVerticalLine: false,
+            horizontalInterval: interval,
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: value == 0 ? scheme.outline : scheme.outlineVariant.withValues(alpha: 0.45),
+              strokeWidth: value == 0 ? 1.3 : 1,
+            ),
+          ),
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 38,
+                interval: interval,
+                getTitlesWidget: (value, meta) => Text(
+                  value == 0 ? '0' : NumberFormat.compact(locale: 'es_MX').format(value),
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 1,
+                getTitlesWidget: (value, meta) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= days.length) return const SizedBox.shrink();
+
+                  final step = days.length > 24 ? 5 : (days.length > 12 ? 3 : 1);
+                  final isLast = i == days.length - 1;
+                  final shouldShow = i % step == 0 || isLast;
+                  if (!shouldShow) return const SizedBox.shrink();
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('${days[i].day}'),
+                  );
+                },
+              ),
+            ),
+          ),
+          barGroups: List.generate(days.length, (i) {
+            final income = incomeSeries[i];
+            final expense = expenseSeries[i];
+            return BarChartGroupData(
+              x: i,
+              barsSpace: 4,
+              barRods: [
+                BarChartRodData(
+                  toY: income,
+                  width: 8,
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                BarChartRodData(
+                  toY: -expense,
+                  width: 8,
+                  color: scheme.error,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
 class _ComparisonBar extends StatelessWidget {
   const _ComparisonBar({
     required this.label,
@@ -767,17 +1037,28 @@ class _ComparisonBar extends StatelessWidget {
   }
 }
 
-class _SettingsTab extends StatelessWidget {
+class _SettingsTab extends ConsumerWidget {
   const _SettingsTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: const [
-        DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
-        DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
-        DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+      children: [
+        const DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
+        const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
+        const DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+        DsListTile(
+          icon: Icons.science_outlined,
+          title: 'Cargar datos demo',
+          subtitle: 'Generar 300 transacciones dummy',
+          onTap: () {
+            ref.read(transactionsProvider.notifier).generateDummyTransactions(count: 300);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Se agregaron 300 transacciones demo')),
+            );
+          },
+        ),
       ],
     );
   }
