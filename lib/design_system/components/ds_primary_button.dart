@@ -15,7 +15,7 @@ class DsPrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final child = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 13),
       child: Text(label),
     );
 
@@ -24,7 +24,7 @@ class DsPrimaryButton extends StatelessWidget {
         width: double.infinity,
         child: FilledButton.icon(
           onPressed: onPressed,
-          icon: Icon(icon),
+          icon: Icon(icon, size: 18),
           label: child,
         ),
       );

@@ -11,16 +11,20 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
       textTheme: dsTextTheme(scheme),
       scaffoldBackgroundColor: scheme.surfaceContainerLowest,
       appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
+          fontSize: 23,
+          fontWeight: FontWeight.w900,
           color: scheme.onSurface,
+          letterSpacing: -0.3,
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -34,6 +38,11 @@ class AppTheme {
         indicatorColor: scheme.secondaryContainer,
         labelTextStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w700)),
       ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        shape: const RoundedRectangleBorder(borderRadius: DsRadius.brXl),
+      ),
       cardTheme: CardThemeData(
         elevation: 0,
         color: scheme.surfaceContainerLow,
@@ -43,17 +52,56 @@ class AppTheme {
           side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
+      chipTheme: ChipThemeData(
+        shape: const StadiumBorder(),
+        side: BorderSide(color: scheme.outlineVariant),
+        selectedColor: scheme.secondaryContainer,
+        backgroundColor: scheme.surfaceContainerHigh,
+        labelStyle: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w600),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.primary,
           shape: const RoundedRectangleBorder(borderRadius: DsRadius.brMd),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: scheme.onSurfaceVariant,
+          hoverColor: scheme.primary.withValues(alpha: 0.08),
+          highlightColor: scheme.primary.withValues(alpha: 0.12),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          iconColor: scheme.onPrimary,
+          disabledBackgroundColor: scheme.surfaceContainerHighest,
+          disabledForegroundColor: scheme.onSurfaceVariant,
+          shape: const RoundedRectangleBorder(borderRadius: DsRadius.brLg),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStateProperty.all(const RoundedRectangleBorder(borderRadius: DsRadius.brLg)),
+          textStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        border: OutlineInputBorder(borderRadius: DsRadius.brMd),
-      ).copyWith(
         fillColor: scheme.surfaceContainerHigh,
+        border: const OutlineInputBorder(borderRadius: DsRadius.brLg),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: DsRadius.brLg,
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: DsRadius.brLg,
+          borderSide: BorderSide(color: scheme.primary, width: 1.6),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }
@@ -65,16 +113,20 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
       textTheme: dsTextTheme(scheme),
       scaffoldBackgroundColor: scheme.surfaceContainerLowest,
       appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
+          fontSize: 23,
+          fontWeight: FontWeight.w900,
           color: scheme.onSurface,
+          letterSpacing: -0.3,
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -88,6 +140,11 @@ class AppTheme {
         indicatorColor: scheme.secondaryContainer.withValues(alpha: 0.45),
         labelTextStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w700)),
       ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        shape: const RoundedRectangleBorder(borderRadius: DsRadius.brXl),
+      ),
       cardTheme: CardThemeData(
         elevation: 0,
         color: scheme.surfaceContainerLow,
@@ -97,17 +154,56 @@ class AppTheme {
           side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
         ),
       ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
+      chipTheme: ChipThemeData(
+        shape: const StadiumBorder(),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+        selectedColor: scheme.secondaryContainer.withValues(alpha: 0.7),
+        backgroundColor: scheme.surfaceContainerHigh,
+        labelStyle: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w600),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: scheme.primary,
           shape: const RoundedRectangleBorder(borderRadius: DsRadius.brMd),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: scheme.onSurfaceVariant,
+          hoverColor: scheme.primary.withValues(alpha: 0.08),
+          highlightColor: scheme.primary.withValues(alpha: 0.12),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          iconColor: scheme.onPrimary,
+          disabledBackgroundColor: scheme.surfaceContainerHighest,
+          disabledForegroundColor: scheme.onSurfaceVariant,
+          shape: const RoundedRectangleBorder(borderRadius: DsRadius.brLg),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStateProperty.all(const RoundedRectangleBorder(borderRadius: DsRadius.brLg)),
+          textStyle: WidgetStateProperty.all(const TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        border: OutlineInputBorder(borderRadius: DsRadius.brMd),
-      ).copyWith(
         fillColor: scheme.surfaceContainerHigh,
+        border: const OutlineInputBorder(borderRadius: DsRadius.brLg),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: DsRadius.brLg,
+          borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: DsRadius.brLg,
+          borderSide: BorderSide(color: scheme.primary, width: 1.7),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }

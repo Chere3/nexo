@@ -1,4 +1,3 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +12,8 @@ import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
 import '../../../../design_system/components/ds_card.dart';
 import '../../../../design_system/components/ds_empty_state.dart';
+import '../../../../design_system/components/ds_list_tile.dart';
+import '../../../../design_system/components/ds_section_card.dart';
 import '../../../../design_system/components/ds_section_title.dart';
 import '../../../../design_system/components/ds_stat_card.dart';
 import '../../../../design_system/tokens/ds_motion.dart';
@@ -75,7 +76,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: Text(_index == 0 ? 'Nexo' : _index == 1 ? 'Analytics' : 'Settings'),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none_rounded)),
+          IconButton(
+            tooltip: 'Notificaciones',
+            onPressed: () {},
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
         ],
       ),
       body: AnimatedSwitcher(
@@ -137,13 +142,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 4),
                   Text('Registra un movimiento en 10 segundos.'),
                   const SizedBox(height: 14),
-                  SegmentedButton<EntryType>(
-                    segments: const [
-                      ButtonSegment(value: EntryType.expense, label: Text('Gasto')),
-                      ButtonSegment(value: EntryType.income, label: Text('Ingreso')),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickTypePill(
+                          label: 'Gasto',
+                          icon: Icons.arrow_upward_rounded,
+                          selected: type == EntryType.expense,
+                          onTap: () => setModalState(() => type = EntryType.expense),
+                          selectedBg: Theme.of(context).colorScheme.errorContainer,
+                          selectedFg: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _QuickTypePill(
+                          label: 'Ingreso',
+                          icon: Icons.arrow_downward_rounded,
+                          selected: type == EntryType.income,
+                          onTap: () => setModalState(() => type = EntryType.income),
+                          selectedBg: Theme.of(context).colorScheme.primaryContainer,
+                          selectedFg: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
                     ],
-                    selected: {type},
-                    onSelectionChanged: (v) => setModalState(() => type = v.first),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -269,6 +291,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+class _QuickTypePill extends StatelessWidget {
+  const _QuickTypePill({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    required this.selectedBg,
+    required this.selectedFg,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color selectedBg;
+  final Color selectedFg;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Tipo de movimiento: $label',
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        height: 52,
+        decoration: BoxDecoration(
+          color: selected ? selectedBg : scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: selected ? Colors.transparent : scheme.outlineVariant),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: onTap,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: selected ? selectedFg : scheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: selected ? selectedFg : scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 const _quickCategories = ['Comida', 'Transporte', 'Casa', 'Salud', 'Ocio', 'Ingresos'];
 
 class _DashboardTab extends StatelessWidget {
@@ -298,6 +380,11 @@ class _DashboardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accountItems = {...accounts}.toList();
+    final selectedAccount = accountItems.contains(accountFilter)
+        ? accountFilter
+        : (accountItems.isNotEmpty ? accountItems.first : null);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
@@ -307,8 +394,8 @@ class _DashboardTab extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          initialValue: accountFilter,
-          items: accounts.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
+          initialValue: selectedAccount,
+          items: accountItems.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
           onChanged: (v) {
             if (v != null) onAccountChanged(v);
           },
@@ -320,18 +407,14 @@ class _DashboardTab extends StatelessWidget {
         const SizedBox(height: 10),
         _BalanceHero(balance: balance, income: income, expense: expense),
         const SizedBox(height: 12),
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.handshake_outlined),
-            title: const Text('Deudas y préstamos'),
-            subtitle: Text(
-              debtPendingTotal >= 0
-                  ? 'Neto por cobrar: ${money.format(debtPendingTotal)}'
-                  : 'Neto por pagar: ${money.format(debtPendingTotal.abs())}',
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => context.pushNamed('debts'),
-          ),
+        DsListTile(
+          icon: Icons.handshake_outlined,
+          title: 'Deudas y préstamos',
+          subtitle: debtPendingTotal >= 0
+              ? 'Neto por cobrar: ${money.format(debtPendingTotal)}'
+              : 'Neto por pagar: ${money.format(debtPendingTotal.abs())}',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('debts'),
         ),
         const SizedBox(height: 18),
         Row(
@@ -497,50 +580,44 @@ class _AnalyticsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        DsCard(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            height: 220,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: BarChart(
-                BarChartData(
-                  borderData: FlBorderData(show: false),
-                  gridData: const FlGridData(show: false),
-                  titlesData: const FlTitlesData(
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        DsSectionCard(
+          title: 'Comparativo de gasto',
+          child: Builder(
+            builder: (context) {
+              final max = (monthly > weekly ? monthly : weekly);
+              final weeklyRatio = max <= 0 ? 0.0 : (weekly / max).clamp(0.0, 1.0);
+              final monthlyRatio = max <= 0 ? 0.0 : (monthly / max).clamp(0.0, 1.0);
+
+              return Column(
+                children: [
+                  _ComparisonBar(
+                    label: 'Semana',
+                    value: money.format(weekly),
+                    ratio: weeklyRatio,
+                    color: Theme.of(context).colorScheme.tertiary,
                   ),
-                  barGroups: [
-                    BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: weekly, width: 24)]),
-                    BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: monthly, width: 24)]),
-                  ],
-                ),
-              ),
-            ),
+                  const SizedBox(height: 12),
+                  _ComparisonBar(
+                    label: 'Mes',
+                    value: money.format(monthly),
+                    ratio: monthlyRatio,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 12),
-        DsCard(
-          padding: const EdgeInsets.all(14),
+        DsSectionCard(
+          title: 'Presupuestos por categoría',
+          action: TextButton(
+            onPressed: () => context.pushNamed('category-limits'),
+            child: const Text('Configurar límites'),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Presupuestos por categoría', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => context.pushNamed('category-limits'),
-                      child: const Text('Configurar límites'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
               ...budgets.entries.map((b) {
                 final used = spent[b.key] ?? 0;
                 final ratio = (used / b.value).clamp(0.0, 1.0);
@@ -586,6 +663,46 @@ class _AnalyticsTab extends StatelessWidget {
   }
 }
 
+class _ComparisonBar extends StatelessWidget {
+  const _ComparisonBar({
+    required this.label,
+    required this.value,
+    required this.ratio,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final double ratio;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(value, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 12,
+            value: ratio,
+            color: color,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SettingsTab extends StatelessWidget {
   const _SettingsTab();
 
@@ -594,11 +711,9 @@ class _SettingsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: const [
-        Card(child: ListTile(leading: Icon(Icons.payments_outlined), title: Text('Moneda'), subtitle: Text('MXN'))),
-        SizedBox(height: 8),
-        Card(child: ListTile(leading: Icon(Icons.dark_mode_outlined), title: Text('Tema'), subtitle: Text('Sistema (Material 3)'))),
-        SizedBox(height: 8),
-        Card(child: ListTile(leading: Icon(Icons.file_download_outlined), title: Text('Exportar CSV'), subtitle: Text('Próximamente'))),
+        DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
+        DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
+        DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
       ],
     );
   }

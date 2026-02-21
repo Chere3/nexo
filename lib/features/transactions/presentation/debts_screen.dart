@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../design_system/components/ds_card.dart';
+import '../../../design_system/components/ds_empty_state.dart';
 import '../../../design_system/components/ds_feature_header.dart';
+import '../../../design_system/components/ds_input.dart';
+import '../../../design_system/components/ds_list_tile.dart';
 import '../../../design_system/components/ds_primary_button.dart';
+import '../../../design_system/components/ds_screen_scaffold.dart';
 import '../domain/debt.dart';
 import '../domain/debts_provider.dart';
 import '../domain/transaction.dart';
@@ -38,11 +42,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final debts = ref.watch(debtsProvider);
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Deudas y préstamos')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
+    return DsScreenScaffold(
+      title: 'Deudas y préstamos',
+      children: [
           const DsFeatureHeader(
             title: 'Deudas y préstamos',
             subtitle: 'Lleva control claro de lo que prestaste y lo que debes.',
@@ -67,22 +69,25 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                     onSelectionChanged: (v) => setState(() => _kind = v.first),
                   ),
                   const SizedBox(height: 10),
-                  TextFormField(
+                  DsInput(
                     controller: _person,
-                    decoration: const InputDecoration(labelText: 'Persona'),
+                    label: 'Persona',
+                    icon: Icons.person_outline_rounded,
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa una persona' : null,
                   ),
                   const SizedBox(height: 10),
-                  TextFormField(
+                  DsInput(
                     controller: _concept,
-                    decoration: const InputDecoration(labelText: 'Concepto'),
+                    label: 'Concepto',
+                    icon: Icons.notes_rounded,
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa un concepto' : null,
                   ),
                   const SizedBox(height: 10),
-                  TextFormField(
+                  DsInput(
                     controller: _amount,
+                    label: 'Monto',
+                    icon: Icons.attach_money_rounded,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Monto'),
                     validator: (v) {
                       final n = double.tryParse(v ?? '');
                       if (n == null || n <= 0) return 'Monto inválido';
@@ -103,46 +108,42 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           Text('Pendientes', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           if (debts.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Aún no tienes deudas o préstamos registrados.'),
-              ),
+            const DsEmptyState(
+              icon: Icons.handshake_outlined,
+              title: 'Sin deudas registradas',
+              message: 'Aún no tienes deudas o préstamos registrados.',
             )
           else
             ...debts.map((d) {
               final pending = d.status == DebtStatus.pending;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(d.kind == DebtKind.lent ? Icons.call_received_rounded : Icons.call_made_rounded),
-                  title: Text('${d.person} · ${d.concept}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: Text(pending ? 'Pendiente' : 'Liquidado'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${d.kind == DebtKind.borrowed ? '-' : '+'}${money.format(d.amount)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: d.kind == DebtKind.borrowed ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
-                        ),
+              return DsListTile(
+                icon: d.kind == DebtKind.lent ? Icons.call_received_rounded : Icons.call_made_rounded,
+                title: '${d.person} · ${d.concept}',
+                subtitle: pending ? 'Pendiente' : 'Liquidado',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${d.kind == DebtKind.borrowed ? '-' : '+'}${money.format(d.amount)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: d.kind == DebtKind.borrowed ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
                       ),
-                      Checkbox(
-                        value: !pending,
-                        onChanged: (v) => _onSettleChanged(d, v ?? false),
-                      ),
-                      IconButton(
-                        onPressed: () => ref.read(debtsProvider.notifier).remove(d.id),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Checkbox(
+                      value: !pending,
+                      onChanged: (v) => _onSettleChanged(d, v ?? false),
+                    ),
+                    IconButton(
+                      tooltip: 'Eliminar registro',
+                      onPressed: () => ref.read(debtsProvider.notifier).remove(d.id),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
                 ),
               );
             }),
-        ],
-      ),
+      ],
     );
   }
 
