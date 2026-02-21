@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_feature_header.dart';
 import '../../../design_system/components/ds_primary_button.dart';
+import '../../../design_system/components/ds_screen_scaffold.dart';
 import '../domain/currency.dart';
 import '../domain/transaction.dart';
 import '../domain/transactions_provider.dart';
@@ -50,23 +51,21 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.initialEntry == null ? 'Nuevo movimiento' : 'Editar movimiento')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          const DsFeatureHeader(
-            title: 'Registra un movimiento',
-            subtitle: 'Mantén tus finanzas al día con registros rápidos.',
-            icon: Icons.edit_note_rounded,
-          ),
-          const SizedBox(height: 16),
-          DsCard(
-            padding: const EdgeInsets.all(14),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
+    return DsScreenScaffold(
+      title: widget.initialEntry == null ? 'Nuevo movimiento' : 'Editar movimiento',
+      children: [
+        const DsFeatureHeader(
+          title: 'Registra un movimiento',
+          subtitle: 'Mantén tus finanzas al día con registros rápidos.',
+          icon: Icons.edit_note_rounded,
+        ),
+        const SizedBox(height: 16),
+        DsCard(
+          padding: const EdgeInsets.all(14),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
                   TextFormField(
                     controller: _title,
                     decoration: const InputDecoration(
@@ -152,8 +151,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 

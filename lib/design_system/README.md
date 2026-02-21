@@ -1,32 +1,43 @@
-# Nexo Design System (Material 3)
+# Nexo Design System (Material 3 Expressive)
 
-Base principles aligned to current Material Design 3 guidance (Flutter + M3):
+Base principles aligned to Material 3 Expressive for Flutter.
 
-## 1) Color roles over hardcoded colors
+## 1) Expressive hierarchy (not flat UI)
+- Prioritize one focal action per screen.
+- Use strong title contrast + clear section grouping.
+- Prefer meaningful iconography and shape rhythm to guide attention.
+
+## 2) Color roles over hardcoded colors
 - Use `Theme.of(context).colorScheme` roles.
 - Prefer `surfaceContainer*` for layered surfaces.
 - Use `primary/secondary/tertiary` for emphasis hierarchy.
 
-## 2) Material 3 components first
-- Navigation: `NavigationBar`
-- Actions: `FilledButton` / `FilledButton.tonal`
-- Choice: `SegmentedButton`, chips
+## 3) Components first (no ad-hoc widgets)
+- Layout shell: `DsScreenScaffold`
+- Header: `DsFeatureHeader`
+- Section container: `DsSectionCard`
+- Lists: `DsListTile`
+- States: `DsEmptyState`
+- Metrics: `DsStatCard`
+- Actions: `DsPrimaryButton`, `FilledButton`, `SegmentedButton`, chips
 
-## 3) Consistent tokens
+## 4) Consistent tokens
 - Spacing: `tokens/ds_spacing.dart`
 - Radius: `tokens/ds_radius.dart`
 - Motion: `tokens/ds_motion.dart`
 - Typography: `tokens/ds_typography.dart`
 
-## 4) Motion
+## 5) Motion
 - Fast: 150ms
 - Standard: 250ms
 - Emphasized: 380ms
+- Use motion to clarify state change, never as decoration only.
 
-## 5) Accessibility
+## 6) Accessibility guardrails
 - Keep high contrast using M3 on-colors.
-- Respect minimum tap target and semantic labels.
+- Minimum tap target and semantic labels.
+- Keep typography legible in both dark/light and dense layouts.
 
-## 6) Dynamic color (Material You)
+## 7) Dynamic color
 - Enabled via `dynamic_color` package.
 - App falls back to seeded `ColorScheme.fromSeed` when dynamic color is unavailable.

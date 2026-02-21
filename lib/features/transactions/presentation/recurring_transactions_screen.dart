@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../design_system/components/ds_card.dart';
+import '../../../design_system/components/ds_empty_state.dart';
 import '../../../design_system/components/ds_feature_header.dart';
+import '../../../design_system/components/ds_list_tile.dart';
 import '../../../design_system/components/ds_primary_button.dart';
+import '../../../design_system/components/ds_screen_scaffold.dart';
 import '../domain/recurring_transaction.dart';
 import '../domain/recurring_transactions_provider.dart';
 import '../domain/transaction.dart';
@@ -39,11 +42,9 @@ class _RecurringTransactionsScreenState extends ConsumerState<RecurringTransacti
     final recurring = ref.watch(recurringTransactionsProvider);
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pagos recurrentes')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
+    return DsScreenScaffold(
+      title: 'Pagos recurrentes',
+      children: [
           const DsFeatureHeader(
             title: 'Pagos recurrentes',
             subtitle: 'Automatiza tus cobros y pagos frecuentes con menos fricción.',
@@ -157,50 +158,44 @@ class _RecurringTransactionsScreenState extends ConsumerState<RecurringTransacti
           Text('Recurrentes activos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           if (recurring.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Aún no tienes pagos recurrentes.'),
-              ),
+            const DsEmptyState(
+              icon: Icons.repeat_rounded,
+              title: 'Sin recurrentes activos',
+              message: 'Aún no tienes pagos recurrentes.',
             )
           else
             ...recurring.map((r) {
               final isExpense = r.type == EntryType.expense;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(isExpense ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded),
-                  title: Text(r.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(
+              return DsListTile(
+                icon: isExpense ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                title: r.title,
+                subtitle:
                     '${r.category} · ${r.frequency == RecurringFrequency.monthly ? 'Mensual día ${r.dayOfMonth ?? 1}' : 'Semanal ${_weekdayLabel(r.dayOfWeek ?? DateTime.monday)}'}',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${isExpense ? '-' : '+'}${money.format(r.amount)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          color: isExpense ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
-                        ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${isExpense ? '-' : '+'}${money.format(r.amount)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: isExpense ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
                       ),
-                      IconButton(
-                        onPressed: () => _openEditDialog(r),
-                        icon: const Icon(Icons.edit_outlined),
-                        tooltip: 'Editar',
-                      ),
-                      IconButton(
-                        onPressed: () => ref.read(recurringTransactionsProvider.notifier).remove(r.id),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        tooltip: 'Eliminar',
-                      ),
-                    ],
-                  ),
+                    ),
+                    IconButton(
+                      onPressed: () => _openEditDialog(r),
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Editar',
+                    ),
+                    IconButton(
+                      onPressed: () => ref.read(recurringTransactionsProvider.notifier).remove(r.id),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      tooltip: 'Eliminar',
+                    ),
+                  ],
                 ),
               );
             }),
-        ],
-      ),
+      ],
     );
   }
 
