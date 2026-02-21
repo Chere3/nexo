@@ -557,12 +557,14 @@ class _AnalyticsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final range = ref.watch(analyticsRangeProvider);
-    final (start, end) = analyticsRangeToDates(range);
+    final selectedOffset = ref.watch(analyticsPeriodOffsetProvider);
+    final detailSection = ref.watch(analyticsDetailSectionProvider);
+    final (start, end) = analyticsRangeToDatesWithOffset(range, selectedOffset);
 
     final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end)).toList();
 
     ({double income, double expense, double net}) periodTotals(AnalyticsRangePreset preset) {
-      final (ps, pe) = analyticsRangeToDates(preset);
+      final (ps, pe) = analyticsRangeToDatesWithOffset(preset, 0);
       final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
       final income = period
           .where((e) => e.type == EntryType.income)
@@ -571,6 +573,14 @@ class _AnalyticsTab extends StatelessWidget {
           .where((e) => e.type == EntryType.expense)
           .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
       return (income: income, expense: expense, net: income - expense);
+    }
+
+    String periodFeedLabel(int offset) {
+      final (s, e) = analyticsRangeToDatesWithOffset(range, offset);
+      if (range == AnalyticsRangePreset.monthToDate) {
+        return DateFormat('MMMM yyyy', 'es_MX').format(s);
+      }
+      return '${DateFormat('d MMM', 'es_MX').format(s)} - ${DateFormat('d MMM', 'es_MX').format(e)}';
     }
 
     final totalExpense = filtered
@@ -592,6 +602,9 @@ class _AnalyticsTab extends StatelessWidget {
     final prevIncome = previous
         .where((e) => e.type == EntryType.income)
         .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+
+    final net = totalIncome - totalExpense;
+    final prevNet = prevIncome - prevExpense;
 
     final budgets = ref.watch(monthlyCategoryBudgetsProvider);
     final spent = <String, double>{};
@@ -654,7 +667,10 @@ class _AnalyticsTab extends StatelessWidget {
                   },
                   totals: periodTotals(preset),
                   selected: preset == range,
-                  onTap: () => ref.read(analyticsRangeProvider.notifier).state = preset,
+                  onTap: () {
+                    ref.read(analyticsRangeProvider.notifier).state = preset;
+                    ref.read(analyticsPeriodOffsetProvider.notifier).state = 0;
+                  },
                 ),
                 const SizedBox(width: 10),
               ],
@@ -662,160 +678,180 @@ class _AnalyticsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Detalle: ${switch (range) { AnalyticsRangePreset.last7 => 'Últimos 7 días', AnalyticsRangePreset.last30 => 'Últimos 30 días', AnalyticsRangePreset.monthToDate => 'Mes actual' }}',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        Text('Historial de periodos', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        DsCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: _MetricTile(
-                  label: 'Gasto periodo',
-                  value: money.format(totalExpense),
-                  delta: _deltaText(current: totalExpense, previous: prevExpense, higherIsBetter: false),
-                  deltaPositive: _isDeltaPositive(current: totalExpense, previous: prevExpense, higherIsBetter: false),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricTile(
-                  label: 'Ingreso periodo',
-                  value: money.format(totalIncome),
-                  delta: _deltaText(current: totalIncome, previous: prevIncome, higherIsBetter: true),
-                  deltaPositive: _isDeltaPositive(current: totalIncome, previous: prevIncome, higherIsBetter: true),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        DsSectionCard(
-          title: 'Comparativo de gasto',
-          child: Builder(
-            builder: (context) {
-              final max = (totalIncome > totalExpense ? totalIncome : totalExpense);
-              final incomeRatio = max <= 0 ? 0.0 : (totalIncome / max).clamp(0.0, 1.0);
-              final expenseRatio = max <= 0 ? 0.0 : (totalExpense / max).clamp(0.0, 1.0);
-
-              return Column(
-                children: [
-                  _ComparisonBar(
-                    label: 'Ingresos',
-                    value: money.format(totalIncome),
-                    ratio: incomeRatio,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(height: 12),
-                  _ComparisonBar(
-                    label: 'Gastos',
-                    value: money.format(totalExpense),
-                    ratio: expenseRatio,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                ],
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: 12,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final isSelected = i == selectedOffset;
+              return _PeriodFeedChip(
+                label: periodFeedLabel(i),
+                selected: isSelected,
+                onTap: () => ref.read(analyticsPeriodOffsetProvider.notifier).state = i,
               );
             },
           ),
         ),
-        const SizedBox(height: 12),
-        DsSectionCard(
-          title: 'Cashflow del periodo',
-          child: _CashflowTrendChart(
-            days: dayBuckets,
-            incomeSeries: incomeSeries,
-            expenseSeries: expenseSeries,
-            netSeries: netSeries,
-          ),
+        const SizedBox(height: 8),
+        Text(
+          'Detalle: ${periodFeedLabel(selectedOffset)}',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
-        const SizedBox(height: 12),
-        DsSectionCard(
-          title: 'Tendencia por categoría',
-          child: trendCategories.isEmpty
-              ? const Text('Sin suficientes datos para tendencia de categorías.')
-              : Column(
-                  children: trendCategories.take(5).map((item) {
-                    final prev = prevByCategory[item.key] ?? 0;
-                    final change = prev == 0 ? null : ((item.value - prev) / prev) * 100;
-                    final up = (change ?? 0) > 0;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(item.key, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          ),
-                          Text(money.format(item.value)),
-                          const SizedBox(width: 8),
-                          Text(
-                            change == null
-                                ? 'nuevo'
-                                : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: change == null
-                                  ? Theme.of(context).colorScheme.secondary
-                                  : (up ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-        ),
-        const SizedBox(height: 12),
-        DsSectionCard(
-          title: 'Presupuestos por categoría',
-          action: TextButton(
-            onPressed: () => context.pushNamed('category-limits'),
-            child: const Text('Configurar límites'),
-          ),
+        const SizedBox(height: 8),
+        DsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ...budgets.entries.map((b) {
-                final used = spent[b.key] ?? 0;
-                final ratio = (used / b.value).clamp(0.0, 1.0);
-                final over = used > b.value;
-                final near = !over && ratio >= 0.8;
-                final progressColor = over
-                    ? Theme.of(context).colorScheme.error
-                    : near
-                        ? Theme.of(context).colorScheme.tertiary
-                        : Theme.of(context).colorScheme.primary;
-
-                final status = over
-                    ? 'Excedido'
-                    : near
-                        ? 'Cerca del límite'
-                        : 'En rango';
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(b.key, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          Text('${money.format(used)} / ${money.format(b.value)}'),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(status, style: TextStyle(fontSize: 12, color: progressColor, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 6),
-                      LinearProgressIndicator(value: ratio, color: progressColor),
-                    ],
-                  ),
-                );
-              }),
+              Text('Neto del periodo', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Text(
+                money.format(net),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _deltaText(current: net, previous: prevNet, higherIsBetter: true),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _isDeltaPositive(current: net, previous: prevNet, higherIsBetter: true)
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.error,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _MetricTile(label: 'Ingreso', value: money.format(totalIncome))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _MetricTile(label: 'Gasto', value: money.format(totalExpense))),
+                ],
+              ),
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('Cashflow'),
+                selected: detailSection == AnalyticsDetailSection.cashflow,
+                onSelected: (_) => ref.read(analyticsDetailSectionProvider.notifier).state = AnalyticsDetailSection.cashflow,
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Categorías'),
+                selected: detailSection == AnalyticsDetailSection.categories,
+                onSelected: (_) => ref.read(analyticsDetailSectionProvider.notifier).state = AnalyticsDetailSection.categories,
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Presupuestos'),
+                selected: detailSection == AnalyticsDetailSection.budgets,
+                onSelected: (_) => ref.read(analyticsDetailSectionProvider.notifier).state = AnalyticsDetailSection.budgets,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (detailSection == AnalyticsDetailSection.cashflow)
+          DsSectionCard(
+            title: 'Cashflow del periodo',
+            child: _CashflowTrendChart(
+              days: dayBuckets,
+              incomeSeries: incomeSeries,
+              expenseSeries: expenseSeries,
+              netSeries: netSeries,
+            ),
+          ),
+        if (detailSection == AnalyticsDetailSection.categories)
+          DsSectionCard(
+            title: 'Tendencia por categoría',
+            child: trendCategories.isEmpty
+                ? const Text('Sin suficientes datos para tendencia de categorías.')
+                : Column(
+                    children: trendCategories.take(6).map((item) {
+                      final prev = prevByCategory[item.key] ?? 0;
+                      final change = prev == 0 ? null : ((item.value - prev) / prev) * 100;
+                      final up = (change ?? 0) > 0;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(item.key, style: const TextStyle(fontWeight: FontWeight.w700))),
+                            Text(money.format(item.value)),
+                            const SizedBox(width: 8),
+                            Text(
+                              change == null ? 'nuevo' : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: change == null
+                                    ? Theme.of(context).colorScheme.secondary
+                                    : (up ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ),
+        if (detailSection == AnalyticsDetailSection.budgets)
+          DsSectionCard(
+            title: 'Presupuestos por categoría',
+            action: TextButton(
+              onPressed: () => context.pushNamed('category-limits'),
+              child: const Text('Configurar límites'),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...budgets.entries.map((b) {
+                  final used = spent[b.key] ?? 0;
+                  final ratio = (used / b.value).clamp(0.0, 1.0);
+                  final over = used > b.value;
+                  final near = !over && ratio >= 0.8;
+                  final progressColor = over
+                      ? Theme.of(context).colorScheme.error
+                      : near
+                          ? Theme.of(context).colorScheme.tertiary
+                          : Theme.of(context).colorScheme.primary;
+
+                  final status = over
+                      ? 'Excedido'
+                      : near
+                          ? 'Cerca del límite'
+                          : 'En rango';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(b.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            Text('${money.format(used)} / ${money.format(b.value)}'),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(status, style: TextStyle(fontSize: 12, color: progressColor, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        LinearProgressIndicator(value: ratio, color: progressColor),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -837,6 +873,45 @@ class _AnalyticsTab extends StatelessWidget {
   bool _isDeltaPositive({required double current, required double previous, required bool higherIsBetter}) {
     if (previous == 0) return current > 0;
     return higherIsBetter ? current >= previous : current <= previous;
+  }
+}
+
+class _PeriodFeedChip extends StatelessWidget {
+  const _PeriodFeedChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected ? scheme.secondaryContainer : scheme.surfaceContainer,
+          border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -997,46 +1072,6 @@ class _CashflowTrendChart extends StatelessWidget {
   }
 }
 
-class _ComparisonBar extends StatelessWidget {
-  const _ComparisonBar({
-    required this.label,
-    required this.value,
-    required this.ratio,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final double ratio;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            Text(value, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            minHeight: 12,
-            value: ratio,
-            color: color,
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _SettingsTab extends ConsumerWidget {
   const _SettingsTab();
 
@@ -1065,39 +1100,19 @@ class _SettingsTab extends ConsumerWidget {
 }
 
 class _MetricTile extends StatelessWidget {
-  const _MetricTile({
-    required this.label,
-    required this.value,
-    this.delta,
-    this.deltaPositive,
-  });
+  const _MetricTile({required this.label, required this.value});
 
   final String label;
   final String value;
-  final String? delta;
-  final bool? deltaPositive;
 
   @override
   Widget build(BuildContext context) {
-    final pos = deltaPositive ?? true;
-    final deltaColor = pos ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: 4),
         Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-        if (delta != null) ...[
-          const SizedBox(height: 3),
-          Text(
-            delta!,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: deltaColor,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ],
       ],
     );
   }

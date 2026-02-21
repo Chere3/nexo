@@ -6,19 +6,37 @@ final analyticsRangeProvider = StateProvider<AnalyticsRangePreset>(
   (ref) => AnalyticsRangePreset.last7,
 );
 
+final analyticsPeriodOffsetProvider = StateProvider<int>((ref) => 0);
+
+enum AnalyticsDetailSection { cashflow, categories, budgets }
+
+final analyticsDetailSectionProvider =
+    StateProvider<AnalyticsDetailSection>((ref) => AnalyticsDetailSection.cashflow);
+
 (DateTime start, DateTime end) analyticsRangeToDates(AnalyticsRangePreset preset) {
+  return analyticsRangeToDatesWithOffset(preset, 0);
+}
+
+(DateTime start, DateTime end) analyticsRangeToDatesWithOffset(AnalyticsRangePreset preset, int offset) {
   final now = DateTime.now();
-  final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+  final todayStart = DateTime(now.year, now.month, now.day);
 
   switch (preset) {
     case AnalyticsRangePreset.last7:
-      final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+      final shiftedEnd = todayStart.subtract(Duration(days: offset * 7));
+      final end = DateTime(shiftedEnd.year, shiftedEnd.month, shiftedEnd.day, 23, 59, 59);
+      final start = shiftedEnd.subtract(const Duration(days: 6));
       return (start, end);
     case AnalyticsRangePreset.last30:
-      final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
+      final shiftedEnd = todayStart.subtract(Duration(days: offset * 30));
+      final end = DateTime(shiftedEnd.year, shiftedEnd.month, shiftedEnd.day, 23, 59, 59);
+      final start = shiftedEnd.subtract(const Duration(days: 29));
       return (start, end);
     case AnalyticsRangePreset.monthToDate:
-      final start = DateTime(now.year, now.month, 1);
+      final monthDate = DateTime(now.year, now.month - offset, 1);
+      final start = DateTime(monthDate.year, monthDate.month, 1);
+      final endDay = DateTime(monthDate.year, monthDate.month + 1, 0).day;
+      final end = DateTime(monthDate.year, monthDate.month, endDay, 23, 59, 59);
       return (start, end);
   }
 }
