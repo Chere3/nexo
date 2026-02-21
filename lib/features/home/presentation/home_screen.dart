@@ -567,6 +567,19 @@ class _AnalyticsTab extends StatelessWidget {
         .where((e) => e.type == EntryType.income)
         .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
 
+    final days = end.difference(start).inDays + 1;
+    final prevEnd = start.subtract(const Duration(seconds: 1));
+    final prevStart = DateTime(prevEnd.year, prevEnd.month, prevEnd.day).subtract(Duration(days: days - 1));
+
+    final previous = entries.where((e) => !e.date.isBefore(prevStart) && !e.date.isAfter(prevEnd));
+
+    final prevExpense = previous
+        .where((e) => e.type == EntryType.expense)
+        .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+    final prevIncome = previous
+        .where((e) => e.type == EntryType.income)
+        .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+
     final budgets = ref.watch(monthlyCategoryBudgetsProvider);
     final spent = <String, double>{};
     for (final e in filtered) {
@@ -591,9 +604,23 @@ class _AnalyticsTab extends StatelessWidget {
         DsCard(
           child: Row(
             children: [
-              Expanded(child: _MetricTile(label: 'Gasto periodo', value: money.format(totalExpense))),
+              Expanded(
+                child: _MetricTile(
+                  label: 'Gasto periodo',
+                  value: money.format(totalExpense),
+                  delta: _deltaText(current: totalExpense, previous: prevExpense, higherIsBetter: false),
+                  deltaPositive: _isDeltaPositive(current: totalExpense, previous: prevExpense, higherIsBetter: false),
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _MetricTile(label: 'Ingreso periodo', value: money.format(totalIncome))),
+              Expanded(
+                child: _MetricTile(
+                  label: 'Ingreso periodo',
+                  value: money.format(totalIncome),
+                  delta: _deltaText(current: totalIncome, previous: prevIncome, higherIsBetter: true),
+                  deltaPositive: _isDeltaPositive(current: totalIncome, previous: prevIncome, higherIsBetter: true),
+                ),
+              ),
             ],
           ),
         ),
@@ -679,6 +706,25 @@ class _AnalyticsTab extends StatelessWidget {
       ],
     );
   }
+
+  String _deltaText({required double current, required double previous, required bool higherIsBetter}) {
+    if (previous == 0) {
+      if (current == 0) return 'Sin cambio';
+      return 'Nuevo periodo';
+    }
+
+    final change = ((current - previous) / previous) * 100;
+    final sign = change >= 0 ? '+' : '';
+    final tag = higherIsBetter
+        ? (change >= 0 ? 'mejor' : 'baja')
+        : (change <= 0 ? 'mejor' : 'sube');
+    return '$sign${change.toStringAsFixed(1)}% · $tag';
+  }
+
+  bool _isDeltaPositive({required double current, required double previous, required bool higherIsBetter}) {
+    if (previous == 0) return current > 0;
+    return higherIsBetter ? current >= previous : current <= previous;
+  }
 }
 
 class _ComparisonBar extends StatelessWidget {
@@ -738,19 +784,39 @@ class _SettingsTab extends StatelessWidget {
 }
 
 class _MetricTile extends StatelessWidget {
-  const _MetricTile({required this.label, required this.value});
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    this.delta,
+    this.deltaPositive,
+  });
 
   final String label;
   final String value;
+  final String? delta;
+  final bool? deltaPositive;
 
   @override
   Widget build(BuildContext context) {
+    final pos = deltaPositive ?? true;
+    final deltaColor = pos ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.error;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: 4),
         Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+        if (delta != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            delta!,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: deltaColor,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
       ],
     );
   }
