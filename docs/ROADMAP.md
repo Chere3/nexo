@@ -26,6 +26,20 @@ Product roadmap based on phased delivery.
 - [ ] Multi-account support
 - [ ] Multi-currency support
 
+## Phase 2.5 — Material 3 Expressive System (Next)
+- [ ] Define Expressive UI principles for Nexo (shape, type, motion, hierarchy)
+- [ ] Build shared expressive components:
+  - [ ] `DsScreenScaffold`
+  - [ ] `DsSectionCard`
+  - [ ] `DsListTile`
+  - [ ] `DsTopAppBar`
+  - [ ] `DsInput` / `DsSelect` expressive variants
+- [ ] Unify spacing/radius/elevation across all core screens
+- [ ] Apply expressive pass to Home, Add, Recurring, Debts, Category Limits
+- [ ] Add interactive states consistency (hover/focus/pressed/disabled)
+- [ ] Add expressive motion patterns (enter/exit, list transitions, feedback)
+- [ ] Accessibility guardrails for expressive UI (contrast + touch targets)
+
 ## Phase 3 — Analytics & Insights
 - [ ] Date-range filters
 - [ ] Period-over-period comparisons
@@ -77,12 +91,14 @@ Goal: maximize capture consistency for users with ADHD (low friction, low cognit
 
 ---
 
-## Design System Track (Material Design 3)
+## Design System Track (Material 3 Expressive)
 Runs in parallel with feature phases.
 
 - [x] DS tokens: spacing, radius, motion, typography
 - [x] DS components: section title, card, primary button
-- [ ] DS components: top app bar, stat card, budget progress, empty state
-- [ ] Dynamic color refinements per platform
+- [x] DS components: feature header, stat card, empty state
+- [ ] DS components: top app bar, section card, expressive list tile, scaffold shell
+- [ ] Expressive shape + elevation strategy documentation
 - [ ] Interaction states (hover/focus/pressed) consistency
+- [ ] Motion choreography guide (durations, easing, sequence)
 - [ ] Theming documentation with examples
