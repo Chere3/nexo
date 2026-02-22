@@ -59,6 +59,16 @@ Product roadmap based on phased delivery.
 - [ ] Contributor onboarding improvements
 - [ ] Release process and changelog automation
 
+## Phase 6 — Android Studio Deployment & Release Readiness ✅
+- [x] Generate and validate Android project setup (`flutter create .` sanity for android/)
+- [x] Configure Android package/applicationId, min/target SDK, and Gradle compatibility
+- [x] Add launcher icons, splash, and app name variants for Android
+- [x] Build-type setup: debug/profile/release + signing config (keystore)
+- [x] Verify runtime on Android emulator (Pixel) and at least one physical device
+- [x] QA pass on Android: navigation, forms, analytics charts, DB migrations, performance
+- [x] Permissions and platform behavior review (notifications, locale/timezone, storage expectations)
+- [x] Produce release APK/AAB and document install/play-store-ready steps
+
 ---
 
 ## ADHD UX Layer (Cross-phase, aligned to roadmap)
