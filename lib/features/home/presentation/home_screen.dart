@@ -558,8 +558,9 @@ class _AnalyticsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final range = ref.watch(analyticsRangeProvider);
     final selectedOffset = ref.watch(analyticsPeriodOffsetProvider);
-    final detailSection = ref.watch(analyticsDetailSectionProvider);
-    final (start, end) = analyticsRangeToDatesWithOffset(range, selectedOffset);
+    final hasSelectedPeriod = selectedOffset >= 0;
+    final activeOffset = hasSelectedPeriod ? selectedOffset : 0;
+    final (start, end) = analyticsRangeToDatesWithOffset(range, activeOffset);
 
     final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end)).toList();
 
@@ -580,8 +581,36 @@ class _AnalyticsTab extends StatelessWidget {
       if (range == AnalyticsRangePreset.monthToDate) {
         return DateFormat('MMMM yyyy', 'es_MX').format(s);
       }
+      if (range == AnalyticsRangePreset.yearToDate) {
+        return DateFormat('yyyy', 'es_MX').format(s);
+      }
       return '${DateFormat('d MMM', 'es_MX').format(s)} - ${DateFormat('d MMM', 'es_MX').format(e)}';
     }
+
+    final maxPeriods = switch (range) {
+      AnalyticsRangePreset.last7 => 26,
+      AnalyticsRangePreset.last30 => 18,
+      AnalyticsRangePreset.monthToDate => 24,
+      AnalyticsRangePreset.yearToDate => 8,
+    };
+
+    ({int offset, String label, double income, double expense})? periodFeedItem(int offset) {
+      final (ps, pe) = analyticsRangeToDatesWithOffset(range, offset);
+      final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
+      final income = period
+          .where((e) => e.type == EntryType.income)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      final expense = period
+          .where((e) => e.type == EntryType.expense)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      if (income <= 0 && expense <= 0) return null;
+      return (offset: offset, label: periodFeedLabel(offset), income: income, expense: expense);
+    }
+
+    final availablePeriods = [
+      for (var i = 0; i < maxPeriods; i++)
+        if (periodFeedItem(i) case final item?) item,
+    ];
 
     final totalExpense = filtered
         .where((e) => e.type == EntryType.expense)
@@ -607,6 +636,16 @@ class _AnalyticsTab extends StatelessWidget {
     final prevNet = prevIncome - prevExpense;
 
     final budgets = ref.watch(monthlyCategoryBudgetsProvider);
+
+    double periodLimitFromMonthly(double monthlyLimit) {
+      return switch (range) {
+        AnalyticsRangePreset.last7 => monthlyLimit * (7 / 30),
+        AnalyticsRangePreset.last30 => monthlyLimit,
+        AnalyticsRangePreset.monthToDate => monthlyLimit,
+        AnalyticsRangePreset.yearToDate => monthlyLimit * 12,
+      };
+    }
+
     final spent = <String, double>{};
     for (final e in filtered) {
       if (e.type != EntryType.expense) continue;
@@ -614,26 +653,49 @@ class _AnalyticsTab extends StatelessWidget {
     }
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
-    final dayCount = end.difference(start).inDays + 1;
-    final dayBuckets = List.generate(dayCount, (i) => DateTime(start.year, start.month, start.day + i));
+    final isYearView = range == AnalyticsRangePreset.yearToDate;
 
+    final bucketLabels = <String>[];
     final incomeSeries = <double>[];
     final expenseSeries = <double>[];
     final netSeries = <double>[];
 
-    for (final day in dayBuckets) {
-      final inDay = filtered
-          .where((e) => e.type == EntryType.income)
-          .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
-          .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
-      final outDay = filtered
-          .where((e) => e.type == EntryType.expense)
-          .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
-          .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+    if (isYearView) {
+      for (var m = 1; m <= 12; m++) {
+        final inMonth = filtered
+            .where((e) => e.type == EntryType.income)
+            .where((e) => e.date.year == start.year && e.date.month == m)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+        final outMonth = filtered
+            .where((e) => e.type == EntryType.expense)
+            .where((e) => e.date.year == start.year && e.date.month == m)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
 
-      incomeSeries.add(inDay);
-      expenseSeries.add(outDay);
-      netSeries.add(inDay - outDay);
+        final monthLabel = DateFormat.MMM('es_MX').format(DateTime(start.year, m, 1));
+        bucketLabels.add(monthLabel[0].toUpperCase() + monthLabel.substring(1));
+        incomeSeries.add(inMonth);
+        expenseSeries.add(outMonth);
+        netSeries.add(inMonth - outMonth);
+      }
+    } else {
+      final dayCount = end.difference(start).inDays + 1;
+      final dayBuckets = List.generate(dayCount, (i) => DateTime(start.year, start.month, start.day + i));
+
+      for (final day in dayBuckets) {
+        final inDay = filtered
+            .where((e) => e.type == EntryType.income)
+            .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+        final outDay = filtered
+            .where((e) => e.type == EntryType.expense)
+            .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+
+        bucketLabels.add('${day.day}');
+        incomeSeries.add(inDay);
+        expenseSeries.add(outDay);
+        netSeries.add(inDay - outDay);
+      }
     }
 
     final currentByCategory = <String, double>{};
@@ -649,60 +711,97 @@ class _AnalyticsTab extends StatelessWidget {
     final trendCategories = currentByCategory.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
+    final topCategory = trendCategories.isEmpty ? null : trendCategories.first;
+    final topCategoryPct = (topCategory == null || totalExpense <= 0)
+        ? 0.0
+        : (topCategory.value / totalExpense) * 100;
+
+    final budgetRiskCount = budgets.entries.where((b) {
+      final used = spent[b.key] ?? 0;
+      final limit = periodLimitFromMonthly(b.value);
+      if (limit <= 0) return false;
+      return (used / limit) >= 0.8;
+    }).length;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Periodos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final preset in AnalyticsRangePreset.values) ...[
-                _PeriodOverviewCard(
-                  label: switch (preset) {
-                    AnalyticsRangePreset.last7 => '7 días',
-                    AnalyticsRangePreset.last30 => '30 días',
-                    AnalyticsRangePreset.monthToDate => 'Mes',
-                  },
-                  totals: periodTotals(preset),
-                  selected: preset == range,
-                  onTap: () {
-                    ref.read(analyticsRangeProvider.notifier).state = preset;
-                    ref.read(analyticsPeriodOffsetProvider.notifier).state = 0;
-                  },
-                ),
-                const SizedBox(width: 10),
+        if (!hasSelectedPeriod) ...[
+          Text('Periodos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final preset in AnalyticsRangePreset.values) ...[
+                  _PeriodOverviewCard(
+                    label: switch (preset) {
+                      AnalyticsRangePreset.last7 => '7 días',
+                      AnalyticsRangePreset.last30 => '30 días',
+                      AnalyticsRangePreset.monthToDate => 'MTD',
+                      AnalyticsRangePreset.yearToDate => 'YTD',
+                    },
+                    totals: periodTotals(preset),
+                    selected: preset == range,
+                    onTap: () {
+                      ref.read(analyticsRangeProvider.notifier).state = preset;
+                      ref.read(analyticsPeriodOffsetProvider.notifier).state = -1;
+                    },
+                  ),
+                  const SizedBox(width: 10),
+                ],
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (!hasSelectedPeriod) ...[
+          Text('Historial de periodos', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          if (availablePeriods.isEmpty)
+            const DsEmptyState(
+              icon: Icons.hourglass_empty_rounded,
+              title: 'Sin periodos con movimientos',
+              message: 'Cuando existan transacciones, aparecerán aquí.',
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: availablePeriods.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, i) {
+                final item = availablePeriods[i];
+                return _PeriodFeedTile(
+                  label: item.label,
+                  income: money.format(item.income),
+                  expense: money.format(item.expense),
+                  selected: false,
+                  onTap: () => ref.read(analyticsPeriodOffsetProvider.notifier).state = item.offset,
+                );
+              },
+            ),
+          const SizedBox(height: 8),
+        ],
+        if (hasSelectedPeriod) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Detalle: ${periodFeedLabel(activeOffset)}',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              TextButton(
+                onPressed: () => ref.read(analyticsPeriodOffsetProvider.notifier).state = -1,
+                child: const Text('Cambiar periodo'),
+              ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        Text('Historial de periodos', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 92,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: 12,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final isSelected = i == selectedOffset;
-              return _PeriodFeedChip(
-                label: periodFeedLabel(i),
-                selected: isSelected,
-                onTap: () => ref.read(analyticsPeriodOffsetProvider.notifier).state = i,
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Detalle: ${periodFeedLabel(selectedOffset)}',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        DsCard(
+          const SizedBox(height: 8),
+        ],
+        if (hasSelectedPeriod) ...[
+          DsCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -734,124 +833,128 @@ class _AnalyticsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Insights rápidos',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ChoiceChip(
-                label: const Text('Cashflow'),
-                selected: detailSection == AnalyticsDetailSection.cashflow,
-                onSelected: (_) => ref.read(analyticsDetailSectionProvider.notifier).state = AnalyticsDetailSection.cashflow,
+              _InsightRow(
+                icon: Icons.category_outlined,
+                text: topCategory == null
+                    ? 'Aún no hay categoría dominante en este periodo.'
+                    : '${topCategory.key} concentra ${topCategoryPct.toStringAsFixed(0)}% del gasto del periodo.',
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Categorías'),
-                selected: detailSection == AnalyticsDetailSection.categories,
-                onSelected: (_) => ref.read(analyticsDetailSectionProvider.notifier).state = AnalyticsDetailSection.categories,
+              const SizedBox(height: 8),
+              _InsightRow(
+                icon: Icons.warning_amber_rounded,
+                text: budgetRiskCount == 0
+                    ? 'Sin categorías en riesgo de límite (80%+).'
+                    : '$budgetRiskCount categorías están cerca o sobre su límite temporal.',
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Presupuestos'),
-                selected: detailSection == AnalyticsDetailSection.budgets,
-                onSelected: (_) => ref.read(analyticsDetailSectionProvider.notifier).state = AnalyticsDetailSection.budgets,
+              const SizedBox(height: 8),
+              _InsightRow(
+                icon: Icons.insights_outlined,
+                text: 'Neto ${_deltaText(current: net, previous: prevNet, higherIsBetter: true)} vs periodo anterior.',
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
-        if (detailSection == AnalyticsDetailSection.cashflow)
-          DsSectionCard(
-            title: 'Cashflow del periodo',
-            child: _CashflowTrendChart(
-              days: dayBuckets,
-              incomeSeries: incomeSeries,
-              expenseSeries: expenseSeries,
-              netSeries: netSeries,
-            ),
+        DsSectionCard(
+          title: 'Cashflow del periodo',
+          child: _CashflowTrendChart(
+            labels: bucketLabels,
+            incomeSeries: incomeSeries,
+            expenseSeries: expenseSeries,
+            netSeries: netSeries,
           ),
-        if (detailSection == AnalyticsDetailSection.categories)
-          DsSectionCard(
-            title: 'Tendencia por categoría',
-            child: trendCategories.isEmpty
-                ? const Text('Sin suficientes datos para tendencia de categorías.')
-                : Column(
-                    children: trendCategories.take(6).map((item) {
-                      final prev = prevByCategory[item.key] ?? 0;
-                      final change = prev == 0 ? null : ((item.value - prev) / prev) * 100;
-                      final up = (change ?? 0) > 0;
+        ),
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Tendencia por categoría',
+          child: trendCategories.isEmpty
+              ? const Text('Sin suficientes datos para tendencia de categorías.')
+              : Column(
+                  children: trendCategories.take(6).map((item) {
+                    final prev = prevByCategory[item.key] ?? 0;
+                    final change = prev == 0 ? null : ((item.value - prev) / prev) * 100;
+                    final up = (change ?? 0) > 0;
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          children: [
-                            Expanded(child: Text(item.key, style: const TextStyle(fontWeight: FontWeight.w700))),
-                            Text(money.format(item.value)),
-                            const SizedBox(width: 8),
-                            Text(
-                              change == null ? 'nuevo' : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: change == null
-                                    ? Theme.of(context).colorScheme.secondary
-                                    : (up ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
-                              ),
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(item.key, style: const TextStyle(fontWeight: FontWeight.w700))),
+                          Text(money.format(item.value)),
+                          const SizedBox(width: 8),
+                          Text(
+                            change == null ? 'nuevo' : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: change == null
+                                  ? Theme.of(context).colorScheme.secondary
+                                  : (up ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
                             ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+        ),
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Presupuestos por categoría',
+          action: TextButton(
+            onPressed: () => context.pushNamed('category-limits'),
+            child: const Text('Configurar límites'),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...budgets.entries.map((b) {
+                final used = spent[b.key] ?? 0;
+                final periodLimit = periodLimitFromMonthly(b.value);
+                final ratio = periodLimit <= 0 ? 0.0 : (used / periodLimit).clamp(0.0, 1.0);
+                final over = used > periodLimit;
+                final near = !over && ratio >= 0.8;
+                final progressColor = over
+                    ? Theme.of(context).colorScheme.error
+                    : near
+                        ? Theme.of(context).colorScheme.tertiary
+                        : Theme.of(context).colorScheme.primary;
+
+                final status = over
+                    ? 'Excedido'
+                    : near
+                        ? 'Cerca del límite'
+                        : 'En rango';
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(b.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text('${money.format(used)} / ${money.format(periodLimit)}'),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(status, style: TextStyle(fontSize: 12, color: progressColor, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 6),
+                      LinearProgressIndicator(value: ratio, color: progressColor),
+                    ],
                   ),
+                );
+              }),
+            ],
           ),
-        if (detailSection == AnalyticsDetailSection.budgets)
-          DsSectionCard(
-            title: 'Presupuestos por categoría',
-            action: TextButton(
-              onPressed: () => context.pushNamed('category-limits'),
-              child: const Text('Configurar límites'),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ...budgets.entries.map((b) {
-                  final used = spent[b.key] ?? 0;
-                  final ratio = (used / b.value).clamp(0.0, 1.0);
-                  final over = used > b.value;
-                  final near = !over && ratio >= 0.8;
-                  final progressColor = over
-                      ? Theme.of(context).colorScheme.error
-                      : near
-                          ? Theme.of(context).colorScheme.tertiary
-                          : Theme.of(context).colorScheme.primary;
-
-                  final status = over
-                      ? 'Excedido'
-                      : near
-                          ? 'Cerca del límite'
-                          : 'En rango';
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(b.key, style: const TextStyle(fontWeight: FontWeight.w700)),
-                            Text('${money.format(used)} / ${money.format(b.value)}'),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(status, style: TextStyle(fontSize: 12, color: progressColor, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(value: ratio, color: progressColor),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
+        ),
+        ],
       ],
     );
   }
@@ -876,14 +979,18 @@ class _AnalyticsTab extends StatelessWidget {
   }
 }
 
-class _PeriodFeedChip extends StatelessWidget {
-  const _PeriodFeedChip({
+class _PeriodFeedTile extends StatelessWidget {
+  const _PeriodFeedTile({
     required this.label,
+    required this.income,
+    required this.expense,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final String income;
+  final String expense;
   final bool selected;
   final VoidCallback onTap;
 
@@ -894,21 +1001,27 @@ class _PeriodFeedChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: 150,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           color: selected ? scheme.secondaryContainer : scheme.surfaceContainer,
           border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant),
         ),
-        child: Center(
-          child: Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text('↑ $income', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Text('↓ $expense', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.error, fontWeight: FontWeight.w700)),
+          ],
         ),
       ),
     );
@@ -965,13 +1078,13 @@ class _PeriodOverviewCard extends StatelessWidget {
 
 class _CashflowTrendChart extends StatelessWidget {
   const _CashflowTrendChart({
-    required this.days,
+    required this.labels,
     required this.incomeSeries,
     required this.expenseSeries,
     required this.netSeries,
   });
 
-  final List<DateTime> days;
+  final List<String> labels;
   final List<double> incomeSeries;
   final List<double> expenseSeries;
   final List<double> netSeries;
@@ -1029,22 +1142,22 @@ class _CashflowTrendChart extends StatelessWidget {
                 interval: 1,
                 getTitlesWidget: (value, meta) {
                   final i = value.toInt();
-                  if (i < 0 || i >= days.length) return const SizedBox.shrink();
+                  if (i < 0 || i >= labels.length) return const SizedBox.shrink();
 
-                  final step = days.length > 24 ? 5 : (days.length > 12 ? 3 : 1);
-                  final isLast = i == days.length - 1;
+                  final step = labels.length > 24 ? 5 : (labels.length > 12 ? 3 : 1);
+                  final isLast = i == labels.length - 1;
                   final shouldShow = i % step == 0 || isLast;
                   if (!shouldShow) return const SizedBox.shrink();
 
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text('${days[i].day}'),
+                    child: Text(labels[i]),
                   );
                 },
               ),
             ),
           ),
-          barGroups: List.generate(days.length, (i) {
+          barGroups: List.generate(labels.length, (i) {
             final income = incomeSeries[i];
             final expense = expenseSeries[i];
             return BarChartGroupData(
@@ -1068,6 +1181,30 @@ class _CashflowTrendChart extends StatelessWidget {
           }),
         ),
       ),
+    );
+  }
+}
+
+class _InsightRow extends StatelessWidget {
+  const _InsightRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      ],
     );
   }
 }

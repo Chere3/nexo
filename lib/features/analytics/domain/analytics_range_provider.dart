@@ -1,17 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum AnalyticsRangePreset { last7, last30, monthToDate }
+enum AnalyticsRangePreset { last7, last30, monthToDate, yearToDate }
 
 final analyticsRangeProvider = StateProvider<AnalyticsRangePreset>(
   (ref) => AnalyticsRangePreset.last7,
 );
 
-final analyticsPeriodOffsetProvider = StateProvider<int>((ref) => 0);
-
-enum AnalyticsDetailSection { cashflow, categories, budgets }
-
-final analyticsDetailSectionProvider =
-    StateProvider<AnalyticsDetailSection>((ref) => AnalyticsDetailSection.cashflow);
+final analyticsPeriodOffsetProvider = StateProvider<int>((ref) => -1);
 
 (DateTime start, DateTime end) analyticsRangeToDates(AnalyticsRangePreset preset) {
   return analyticsRangeToDatesWithOffset(preset, 0);
@@ -37,6 +32,13 @@ final analyticsDetailSectionProvider =
       final start = DateTime(monthDate.year, monthDate.month, 1);
       final endDay = DateTime(monthDate.year, monthDate.month + 1, 0).day;
       final end = DateTime(monthDate.year, monthDate.month, endDay, 23, 59, 59);
+      return (start, end);
+    case AnalyticsRangePreset.yearToDate:
+      final yearDate = DateTime(now.year - offset, 1, 1);
+      final start = DateTime(yearDate.year, 1, 1);
+      final end = offset == 0
+          ? DateTime(now.year, now.month, now.day, 23, 59, 59)
+          : DateTime(yearDate.year, 12, 31, 23, 59, 59);
       return (start, end);
   }
 }
