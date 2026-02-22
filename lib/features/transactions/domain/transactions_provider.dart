@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/db/local_store.dart';
@@ -62,6 +64,49 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
 
   void remove(String id) {
     LocalStore.db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+    load();
+  }
+
+  void generateDummyTransactions({int count = 300}) {
+    final rnd = Random();
+    final now = DateTime.now();
+
+    const categories = ['Comida', 'Transporte', 'Casa', 'Salud', 'Ocio', 'Ingresos'];
+    const accounts = ['Efectivo', 'Débito', 'Crédito', 'Ahorros'];
+    const currencies = ['MXN', 'USD', 'EUR'];
+
+    LocalStore.db.execute('BEGIN');
+    try {
+      for (var i = 0; i < count; i++) {
+        final isIncome = rnd.nextDouble() < 0.28;
+        final currency = currencies[rnd.nextDouble() < 0.75 ? 0 : (rnd.nextDouble() < 0.7 ? 1 : 2)];
+
+        final date = now.subtract(Duration(days: rnd.nextInt(360), hours: rnd.nextInt(24), minutes: rnd.nextInt(60)));
+        final amountBase = isIncome ? (1200 + rnd.nextInt(25000)) : (30 + rnd.nextInt(3500));
+        final amount = (amountBase / (currency == 'MXN' ? 1 : currency == 'USD' ? 17 : 18.5));
+
+        final category = isIncome ? 'Ingresos' : categories[rnd.nextInt(categories.length - 1)];
+
+        LocalStore.db.execute(
+          'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            'demo-${DateTime.now().microsecondsSinceEpoch}-$i',
+            isIncome ? 'Ingreso demo ${i + 1}' : 'Gasto demo ${i + 1}',
+            amount.toDouble(),
+            category,
+            date.toIso8601String(),
+            isIncome ? 'income' : 'expense',
+            accounts[rnd.nextInt(accounts.length)],
+            currency,
+          ],
+        );
+      }
+      LocalStore.db.execute('COMMIT');
+    } catch (_) {
+      LocalStore.db.execute('ROLLBACK');
+      rethrow;
+    }
+
     load();
   }
 

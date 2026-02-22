@@ -1,8 +1,10 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
 import '../../transactions/domain/currency.dart';
 import '../../transactions/domain/debts_provider.dart';
@@ -554,59 +556,352 @@ class _AnalyticsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final monthly = entries
+    final range = ref.watch(analyticsRangeProvider);
+    final selectedOffset = ref.watch(analyticsPeriodOffsetProvider);
+    final hasSelectedPeriod = selectedOffset >= 0;
+    final activeOffset = hasSelectedPeriod ? selectedOffset : 0;
+    final (start, end) = analyticsRangeToDatesWithOffset(range, activeOffset);
+
+    final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end)).toList();
+
+    ({double income, double expense, double net}) periodTotals(AnalyticsRangePreset preset) {
+      final (ps, pe) = analyticsRangeToDatesWithOffset(preset, 0);
+      final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
+      final income = period
+          .where((e) => e.type == EntryType.income)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      final expense = period
+          .where((e) => e.type == EntryType.expense)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      return (income: income, expense: expense, net: income - expense);
+    }
+
+    String periodFeedLabel(int offset) {
+      final (s, e) = analyticsRangeToDatesWithOffset(range, offset);
+      if (range == AnalyticsRangePreset.monthToDate) {
+        return DateFormat('MMMM yyyy', 'es_MX').format(s);
+      }
+      if (range == AnalyticsRangePreset.yearToDate) {
+        return DateFormat('yyyy', 'es_MX').format(s);
+      }
+      return '${DateFormat('d MMM', 'es_MX').format(s)} - ${DateFormat('d MMM', 'es_MX').format(e)}';
+    }
+
+    final maxPeriods = switch (range) {
+      AnalyticsRangePreset.last7 => 26,
+      AnalyticsRangePreset.last30 => 18,
+      AnalyticsRangePreset.monthToDate => 24,
+      AnalyticsRangePreset.yearToDate => 8,
+    };
+
+    ({int offset, String label, double income, double expense})? periodFeedItem(int offset) {
+      final (ps, pe) = analyticsRangeToDatesWithOffset(range, offset);
+      final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
+      final income = period
+          .where((e) => e.type == EntryType.income)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      final expense = period
+          .where((e) => e.type == EntryType.expense)
+          .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+      if (income <= 0 && expense <= 0) return null;
+      return (offset: offset, label: periodFeedLabel(offset), income: income, expense: expense);
+    }
+
+    final availablePeriods = [
+      for (var i = 0; i < maxPeriods; i++)
+        if (periodFeedItem(i) case final item?) item,
+    ];
+
+    final totalExpense = filtered
         .where((e) => e.type == EntryType.expense)
-        .where((e) => e.date.year == DateTime.now().year && e.date.month == DateTime.now().month)
         .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
-    final weekly = entries
-        .where((e) => e.type == EntryType.expense)
-        .where((e) => e.date.isAfter(DateTime.now().subtract(const Duration(days: 7))))
+    final totalIncome = filtered
+        .where((e) => e.type == EntryType.income)
         .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
 
+    final days = end.difference(start).inDays + 1;
+    final prevEnd = start.subtract(const Duration(seconds: 1));
+    final prevStart = DateTime(prevEnd.year, prevEnd.month, prevEnd.day).subtract(Duration(days: days - 1));
+
+    final previous = entries.where((e) => !e.date.isBefore(prevStart) && !e.date.isAfter(prevEnd)).toList();
+
+    final prevExpense = previous
+        .where((e) => e.type == EntryType.expense)
+        .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+    final prevIncome = previous
+        .where((e) => e.type == EntryType.income)
+        .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
+
+    final net = totalIncome - totalExpense;
+    final prevNet = prevIncome - prevExpense;
+
     final budgets = ref.watch(monthlyCategoryBudgetsProvider);
-    final spent = ref.watch(spentByCategoryProvider);
+
+    double periodLimitFromMonthly(double monthlyLimit) {
+      return switch (range) {
+        AnalyticsRangePreset.last7 => monthlyLimit * (7 / 30),
+        AnalyticsRangePreset.last30 => monthlyLimit,
+        AnalyticsRangePreset.monthToDate => monthlyLimit,
+        AnalyticsRangePreset.yearToDate => monthlyLimit * 12,
+      };
+    }
+
+    final spent = <String, double>{};
+    for (final e in filtered) {
+      if (e.type != EntryType.expense) continue;
+      spent[e.category] = (spent[e.category] ?? 0) + toMxn(e.amount, e.currency);
+    }
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
+
+    final isYearView = range == AnalyticsRangePreset.yearToDate;
+
+    final bucketLabels = <String>[];
+    final incomeSeries = <double>[];
+    final expenseSeries = <double>[];
+    final netSeries = <double>[];
+
+    if (isYearView) {
+      for (var m = 1; m <= 12; m++) {
+        final inMonth = filtered
+            .where((e) => e.type == EntryType.income)
+            .where((e) => e.date.year == start.year && e.date.month == m)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+        final outMonth = filtered
+            .where((e) => e.type == EntryType.expense)
+            .where((e) => e.date.year == start.year && e.date.month == m)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+
+        final monthLabel = DateFormat.MMM('es_MX').format(DateTime(start.year, m, 1));
+        bucketLabels.add(monthLabel[0].toUpperCase() + monthLabel.substring(1));
+        incomeSeries.add(inMonth);
+        expenseSeries.add(outMonth);
+        netSeries.add(inMonth - outMonth);
+      }
+    } else {
+      final dayCount = end.difference(start).inDays + 1;
+      final dayBuckets = List.generate(dayCount, (i) => DateTime(start.year, start.month, start.day + i));
+
+      for (final day in dayBuckets) {
+        final inDay = filtered
+            .where((e) => e.type == EntryType.income)
+            .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+        final outDay = filtered
+            .where((e) => e.type == EntryType.expense)
+            .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
+            .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
+
+        bucketLabels.add('${day.day}');
+        incomeSeries.add(inDay);
+        expenseSeries.add(outDay);
+        netSeries.add(inDay - outDay);
+      }
+    }
+
+    final currentByCategory = <String, double>{};
+    final prevByCategory = <String, double>{};
+
+    for (final e in filtered.where((e) => e.type == EntryType.expense)) {
+      currentByCategory[e.category] = (currentByCategory[e.category] ?? 0) + toMxn(e.amount, e.currency);
+    }
+    for (final e in previous.where((e) => e.type == EntryType.expense)) {
+      prevByCategory[e.category] = (prevByCategory[e.category] ?? 0) + toMxn(e.amount, e.currency);
+    }
+
+    final trendCategories = currentByCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final topCategory = trendCategories.isEmpty ? null : trendCategories.first;
+    final topCategoryPct = (topCategory == null || totalExpense <= 0)
+        ? 0.0
+        : (topCategory.value / totalExpense) * 100;
+
+    final budgetRiskCount = budgets.entries.where((b) {
+      final used = spent[b.key] ?? 0;
+      final limit = periodLimitFromMonthly(b.value);
+      if (limit <= 0) return false;
+      return (used / limit) >= 0.8;
+    }).length;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        DsCard(
-          child: Row(
+        if (!hasSelectedPeriod) ...[
+          Text('Periodos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final preset in AnalyticsRangePreset.values) ...[
+                  _PeriodOverviewCard(
+                    label: switch (preset) {
+                      AnalyticsRangePreset.last7 => '7 días',
+                      AnalyticsRangePreset.last30 => '30 días',
+                      AnalyticsRangePreset.monthToDate => 'MTD',
+                      AnalyticsRangePreset.yearToDate => 'YTD',
+                    },
+                    totals: periodTotals(preset),
+                    selected: preset == range,
+                    onTap: () {
+                      ref.read(analyticsRangeProvider.notifier).state = preset;
+                      ref.read(analyticsPeriodOffsetProvider.notifier).state = -1;
+                    },
+                  ),
+                  const SizedBox(width: 10),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (!hasSelectedPeriod) ...[
+          Text('Historial de periodos', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          if (availablePeriods.isEmpty)
+            const DsEmptyState(
+              icon: Icons.hourglass_empty_rounded,
+              title: 'Sin periodos con movimientos',
+              message: 'Cuando existan transacciones, aparecerán aquí.',
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: availablePeriods.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, i) {
+                final item = availablePeriods[i];
+                return _PeriodFeedTile(
+                  label: item.label,
+                  income: money.format(item.income),
+                  expense: money.format(item.expense),
+                  selected: false,
+                  onTap: () => ref.read(analyticsPeriodOffsetProvider.notifier).state = item.offset,
+                );
+              },
+            ),
+          const SizedBox(height: 8),
+        ],
+        if (hasSelectedPeriod) ...[
+          Row(
             children: [
-              Expanded(child: _MetricTile(label: 'Gasto semanal', value: money.format(weekly))),
-              const SizedBox(width: 10),
-              Expanded(child: _MetricTile(label: 'Gasto mensual', value: money.format(monthly))),
+              Expanded(
+                child: Text(
+                  'Detalle: ${periodFeedLabel(activeOffset)}',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              TextButton(
+                onPressed: () => ref.read(analyticsPeriodOffsetProvider.notifier).state = -1,
+                child: const Text('Cambiar periodo'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (hasSelectedPeriod) ...[
+          DsCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Neto del periodo', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 4),
+              Text(
+                money.format(net),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _deltaText(current: net, previous: prevNet, higherIsBetter: true),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _isDeltaPositive(current: net, previous: prevNet, higherIsBetter: true)
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.error,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _MetricTile(label: 'Ingreso', value: money.format(totalIncome))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _MetricTile(label: 'Gasto', value: money.format(totalExpense))),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Insights rápidos',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _InsightRow(
+                icon: Icons.category_outlined,
+                text: topCategory == null
+                    ? 'Aún no hay categoría dominante en este periodo.'
+                    : '${topCategory.key} concentra ${topCategoryPct.toStringAsFixed(0)}% del gasto del periodo.',
+              ),
+              const SizedBox(height: 8),
+              _InsightRow(
+                icon: Icons.warning_amber_rounded,
+                text: budgetRiskCount == 0
+                    ? 'Sin categorías en riesgo de límite (80%+).'
+                    : '$budgetRiskCount categorías están cerca o sobre su límite temporal.',
+              ),
+              const SizedBox(height: 8),
+              _InsightRow(
+                icon: Icons.insights_outlined,
+                text: 'Neto ${_deltaText(current: net, previous: prevNet, higherIsBetter: true)} vs periodo anterior.',
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         DsSectionCard(
-          title: 'Comparativo de gasto',
-          child: Builder(
-            builder: (context) {
-              final max = (monthly > weekly ? monthly : weekly);
-              final weeklyRatio = max <= 0 ? 0.0 : (weekly / max).clamp(0.0, 1.0);
-              final monthlyRatio = max <= 0 ? 0.0 : (monthly / max).clamp(0.0, 1.0);
-
-              return Column(
-                children: [
-                  _ComparisonBar(
-                    label: 'Semana',
-                    value: money.format(weekly),
-                    ratio: weeklyRatio,
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
-                  const SizedBox(height: 12),
-                  _ComparisonBar(
-                    label: 'Mes',
-                    value: money.format(monthly),
-                    ratio: monthlyRatio,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ],
-              );
-            },
+          title: 'Cashflow del periodo',
+          child: _CashflowTrendChart(
+            labels: bucketLabels,
+            incomeSeries: incomeSeries,
+            expenseSeries: expenseSeries,
+            netSeries: netSeries,
           ),
+        ),
+        const SizedBox(height: 12),
+        DsSectionCard(
+          title: 'Tendencia por categoría',
+          child: trendCategories.isEmpty
+              ? const Text('Sin suficientes datos para tendencia de categorías.')
+              : Column(
+                  children: trendCategories.take(6).map((item) {
+                    final prev = prevByCategory[item.key] ?? 0;
+                    final change = prev == 0 ? null : ((item.value - prev) / prev) * 100;
+                    final up = (change ?? 0) > 0;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(item.key, style: const TextStyle(fontWeight: FontWeight.w700))),
+                          Text(money.format(item.value)),
+                          const SizedBox(width: 8),
+                          Text(
+                            change == null ? 'nuevo' : '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: change == null
+                                  ? Theme.of(context).colorScheme.secondary
+                                  : (up ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
         ),
         const SizedBox(height: 12),
         DsSectionCard(
@@ -620,8 +915,9 @@ class _AnalyticsTab extends StatelessWidget {
             children: [
               ...budgets.entries.map((b) {
                 final used = spent[b.key] ?? 0;
-                final ratio = (used / b.value).clamp(0.0, 1.0);
-                final over = used > b.value;
+                final periodLimit = periodLimitFromMonthly(b.value);
+                final ratio = periodLimit <= 0 ? 0.0 : (used / periodLimit).clamp(0.0, 1.0);
+                final over = used > periodLimit;
                 final near = !over && ratio >= 0.8;
                 final progressColor = over
                     ? Theme.of(context).colorScheme.error
@@ -644,7 +940,7 @@ class _AnalyticsTab extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(b.key, style: const TextStyle(fontWeight: FontWeight.w700)),
-                          Text('${money.format(used)} / ${money.format(b.value)}'),
+                          Text('${money.format(used)} / ${money.format(periodLimit)}'),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -658,44 +954,254 @@ class _AnalyticsTab extends StatelessWidget {
             ],
           ),
         ),
+        ],
       ],
+    );
+  }
+
+  String _deltaText({required double current, required double previous, required bool higherIsBetter}) {
+    if (previous == 0) {
+      if (current == 0) return 'Sin cambio';
+      return 'Nuevo periodo';
+    }
+
+    final change = ((current - previous) / previous) * 100;
+    final sign = change >= 0 ? '+' : '';
+    final tag = higherIsBetter
+        ? (change >= 0 ? 'mejor' : 'baja')
+        : (change <= 0 ? 'mejor' : 'sube');
+    return '$sign${change.toStringAsFixed(1)}% · $tag';
+  }
+
+  bool _isDeltaPositive({required double current, required double previous, required bool higherIsBetter}) {
+    if (previous == 0) return current > 0;
+    return higherIsBetter ? current >= previous : current <= previous;
+  }
+}
+
+class _PeriodFeedTile extends StatelessWidget {
+  const _PeriodFeedTile({
+    required this.label,
+    required this.income,
+    required this.expense,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String income;
+  final String expense;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected ? scheme.secondaryContainer : scheme.surfaceContainer,
+          border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text('↑ $income', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            Text('↓ $expense', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.error, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _ComparisonBar extends StatelessWidget {
-  const _ComparisonBar({
+class _PeriodOverviewCard extends StatelessWidget {
+  const _PeriodOverviewCard({
     required this.label,
-    required this.value,
-    required this.ratio,
-    required this.color,
+    required this.totals,
+    required this.selected,
+    required this.onTap,
   });
 
   final String label;
-  final String value;
-  final double ratio;
-  final Color color;
+  final ({double income, double expense, double net}) totals;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final scheme = Theme.of(context).colorScheme;
+    final money = NumberFormat.compactCurrency(locale: 'es_MX', symbol: r'$');
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 170,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: selected ? scheme.primaryContainer : scheme.surfaceContainer,
+          border: Border.all(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            Text(value, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+            Text(label, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text('Neto ${money.format(totals.net)}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text('↑ ${money.format(totals.income)}', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.primary)),
+            Text('↓ ${money.format(totals.expense)}', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: scheme.error)),
           ],
         ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            minHeight: 12,
-            value: ratio,
-            color: color,
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+    );
+  }
+}
+
+class _CashflowTrendChart extends StatelessWidget {
+  const _CashflowTrendChart({
+    required this.labels,
+    required this.incomeSeries,
+    required this.expenseSeries,
+    required this.netSeries,
+  });
+
+  final List<String> labels;
+  final List<double> incomeSeries;
+  final List<double> expenseSeries;
+  final List<double> netSeries;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final maxAbs = [
+      ...incomeSeries,
+      ...expenseSeries,
+      ...netSeries.map((e) => e.abs()),
+    ].fold<double>(0, (m, v) => v.abs() > m ? v.abs() : m);
+
+    if (maxAbs == 0) {
+      return const SizedBox(height: 120, child: Center(child: Text('Sin movimientos en el rango')));
+    }
+
+    final upper = maxAbs * 1.2;
+    final interval = upper <= 0 ? 1.0 : upper / 2;
+
+    return SizedBox(
+      height: 220,
+      child: BarChart(
+        BarChartData(
+          minY: -upper,
+          maxY: upper,
+          groupsSpace: 10,
+          alignment: BarChartAlignment.spaceAround,
+          barTouchData: BarTouchData(enabled: false),
+          borderData: FlBorderData(show: false),
+          gridData: FlGridData(
+            drawVerticalLine: false,
+            horizontalInterval: interval,
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: value == 0 ? scheme.outline : scheme.outlineVariant.withValues(alpha: 0.45),
+              strokeWidth: value == 0 ? 1.3 : 1,
+            ),
+          ),
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 38,
+                interval: interval,
+                getTitlesWidget: (value, meta) => Text(
+                  value == 0 ? '0' : NumberFormat.compact(locale: 'es_MX').format(value),
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 1,
+                getTitlesWidget: (value, meta) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= labels.length) return const SizedBox.shrink();
+
+                  final step = labels.length > 24 ? 5 : (labels.length > 12 ? 3 : 1);
+                  final isLast = i == labels.length - 1;
+                  final shouldShow = i % step == 0 || isLast;
+                  if (!shouldShow) return const SizedBox.shrink();
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(labels[i]),
+                  );
+                },
+              ),
+            ),
+          ),
+          barGroups: List.generate(labels.length, (i) {
+            final income = incomeSeries[i];
+            final expense = expenseSeries[i];
+            return BarChartGroupData(
+              x: i,
+              barsSpace: 4,
+              barRods: [
+                BarChartRodData(
+                  toY: income,
+                  width: 8,
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                BarChartRodData(
+                  toY: -expense,
+                  width: 8,
+                  color: scheme.error,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightRow extends StatelessWidget {
+  const _InsightRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
       ],
@@ -703,17 +1209,28 @@ class _ComparisonBar extends StatelessWidget {
   }
 }
 
-class _SettingsTab extends StatelessWidget {
+class _SettingsTab extends ConsumerWidget {
   const _SettingsTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: const [
-        DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
-        DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
-        DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+      children: [
+        const DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
+        const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
+        const DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+        DsListTile(
+          icon: Icons.science_outlined,
+          title: 'Cargar datos demo',
+          subtitle: 'Generar 300 transacciones dummy',
+          onTap: () {
+            ref.read(transactionsProvider.notifier).generateDummyTransactions(count: 300);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Se agregaron 300 transacciones demo')),
+            );
+          },
+        ),
       ],
     );
   }

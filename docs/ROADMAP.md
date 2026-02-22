@@ -39,11 +39,12 @@ Product roadmap based on phased delivery.
 - [x] Add expressive motion patterns (enter/exit, list transitions, feedback)
 - [x] Accessibility guardrails full pass (contrast + touch targets, initial pass)
 
-## Phase 3 — Analytics & Insights
-- [ ] Date-range filters
-- [ ] Period-over-period comparisons
-- [ ] Cashflow and category trend analysis
-- [ ] Smart insight cards (spending anomalies, budget risk)
+## Phase 3 — Analytics & Insights (In progress)
+- [x] P3-01 Date-range filters (7d / 30d / mes actual / custom)
+- [x] P3-02 Period-over-period comparisons
+- [x] P3-03 Cashflow and category trend analysis
+- [x] P3-04 Smart insight cards (spending anomalies, budget risk)
+- [x] P3-05 Analytics Period Hub (overview de periodos → detalle seleccionado)
 
 ## Phase 4 — Data Portability & Reliability
 - [ ] CSV import/export
