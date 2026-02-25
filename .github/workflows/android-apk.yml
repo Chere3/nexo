@@ -25,17 +25,24 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload artifact
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nexo-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: nexo-apks
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-debug.apk
 
-      - name: Publish pre-release APK
+      - name: Publish pre-release APKs
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
           name: Nexo APK (latest)
           prerelease: true
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-debug.apk
           make_latest: false
