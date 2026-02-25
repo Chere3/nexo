@@ -12,6 +12,7 @@ import '../../transactions/domain/recurring_transaction.dart';
 import '../../transactions/domain/recurring_transactions_provider.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../../../../core/data/data_portability_service.dart';
 import '../../../../design_system/components/ds_card.dart';
 import '../../../../design_system/components/ds_empty_state.dart';
 import '../../../../design_system/components/ds_list_tile.dart';
@@ -1209,17 +1210,48 @@ class _InsightRow extends StatelessWidget {
   }
 }
 
-class _SettingsTab extends ConsumerWidget {
+class _SettingsTab extends ConsumerStatefulWidget {
   const _SettingsTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SettingsTab> createState() => _SettingsTabState();
+}
+
+class _SettingsTabState extends ConsumerState<_SettingsTab> {
+  final _portability = DataPortabilityService();
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
         const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
-        const DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+        DsListTile(
+          icon: Icons.file_download_outlined,
+          title: 'Exportar CSV',
+          subtitle: _busy ? 'Procesando...' : 'Guardar transacciones en CSV',
+          onTap: _busy ? null : _exportCsv,
+        ),
+        DsListTile(
+          icon: Icons.file_upload_outlined,
+          title: 'Importar CSV',
+          subtitle: _busy ? 'Procesando...' : 'Importar transacciones desde ruta local',
+          onTap: _busy ? null : _importCsv,
+        ),
+        DsListTile(
+          icon: Icons.backup_outlined,
+          title: 'Crear backup',
+          subtitle: _busy ? 'Procesando...' : 'Respaldo JSON con todas las tablas',
+          onTap: _busy ? null : _createBackup,
+        ),
+        DsListTile(
+          icon: Icons.restore_outlined,
+          title: 'Restaurar backup',
+          subtitle: _busy ? 'Procesando...' : 'Sobrescribe datos con un backup JSON',
+          onTap: _busy ? null : _restoreBackup,
+        ),
         DsListTile(
           icon: Icons.science_outlined,
           title: 'Cargar datos demo',
@@ -1233,6 +1265,132 @@ class _SettingsTab extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _exportCsv() async {
+    await _runTask(() async {
+      final path = await _portability.exportTransactionsCsv();
+      _toast('CSV exportado en:\n$path');
+    });
+  }
+
+  Future<void> _createBackup() async {
+    await _runTask(() async {
+      final path = await _portability.createBackupJson();
+      _toast('Backup creado en:\n$path');
+    });
+  }
+
+  Future<void> _importCsv() async {
+    final path = await _askPath(
+      title: 'Importar CSV',
+      hint: '/ruta/al/archivo.csv',
+      confirmText: 'Importar',
+    );
+    if (path == null) return;
+
+    await _runTask(() async {
+      final imported = await _portability.importTransactionsCsv(path);
+      ref.read(transactionsProvider.notifier).load();
+      _toast('Importación completada: $imported movimientos');
+    });
+  }
+
+  Future<void> _restoreBackup() async {
+    final path = await _askPath(
+      title: 'Restaurar backup',
+      hint: '/ruta/al/backup.json',
+      confirmText: 'Restaurar',
+      danger: true,
+      helper: 'Esta acción reemplaza por completo los datos actuales.',
+    );
+    if (path == null) return;
+
+    await _runTask(() async {
+      await _portability.restoreBackupJson(path);
+      _refreshState();
+      _toast('Backup restaurado correctamente');
+    });
+  }
+
+  Future<void> _runTask(Future<void> Function() task) async {
+    setState(() => _busy = true);
+    try {
+      await task();
+    } catch (e) {
+      _toast('Error: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _refreshState() {
+    ref.read(transactionsProvider.notifier).load();
+    ref.read(recurringTransactionsProvider.notifier).load();
+    ref.read(debtsProvider.notifier).load();
+    ref.read(categoryLimitsProvider.notifier).load();
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String?> _askPath({
+    required String title,
+    required String hint,
+    required String confirmText,
+    String? helper,
+    bool danger = false,
+  }) async {
+    final ctrl = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (helper != null) ...[
+                Text(helper),
+                const SizedBox(height: 10),
+              ],
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              style: danger
+                  ? FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Theme.of(context).colorScheme.onError,
+                    )
+                  : null,
+              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+
+    final trimmed = result?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
   }
 }
 
