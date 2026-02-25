@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -9,9 +10,17 @@ class LocalStore {
 
   static Future<void> init() async {
     final dir = await getApplicationSupportDirectory();
+    await dir.create(recursive: true);
     final dbPath = p.join(dir.path, 'nexo.db');
 
-    db = sqlite3.open(dbPath);
+    try {
+      db = sqlite3.open(dbPath);
+    } catch (e, st) {
+      debugPrint('LocalStore: failed opening sqlite at $dbPath. Falling back to in-memory DB. Error: $e');
+      debugPrint('$st');
+      db = sqlite3.openInMemory();
+    }
+
     db.execute('''
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
