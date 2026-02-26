@@ -62,13 +62,20 @@ flutter run -d linux
 ## 🧪 Quality
 
 ```bash
-flutter analyze
-flutter test
+./scripts/quality.sh
+```
+
+If Flutter is not on your PATH:
+
+```bash
+export PATH=/home/diego/clawd/.tooling/flutter/bin:$PATH
+./scripts/quality.sh
 ```
 
 ## 🗺️ Roadmap
 
-See the product roadmap in [docs/ROADMAP.md](./docs/ROADMAP.md).
+- Execution roadmap: [ROADMAP.md](./ROADMAP.md)
+- Product roadmap: [docs/ROADMAP.md](./docs/ROADMAP.md)
 
 ## 🤝 Contributing
 
