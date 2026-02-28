@@ -68,7 +68,11 @@ flutter test
 
 ## 🗺️ Roadmap
 
-See the product roadmap in [docs/ROADMAP.md](./docs/ROADMAP.md).
+See the product roadmap in [ROADMAP.md](./ROADMAP.md).
+
+## 🛠️ Development
+
+For contributor onboarding and day-to-day workflow, see [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md).
 
 ## 🤝 Contributing
 
