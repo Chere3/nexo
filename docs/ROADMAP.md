@@ -69,6 +69,39 @@ Product roadmap based on phased delivery.
 - [x] Permissions and platform behavior review (notifications, locale/timezone, storage expectations)
 - [x] Produce release APK/AAB and document install/play-store-ready steps
 
+## Phase 7 — Firebase Managed Platform (In progress)
+Goal: move Nexo to a managed cloud data + auth + observability stack while keeping offline reliability.
+
+### P7-01 Firebase foundation
+- [ ] Create Firebase projects/environments (dev/prod) + app registration
+- [ ] FlutterFire CLI setup and generated platform configs
+- [ ] Remote Config baseline (feature flags for gradual rollout)
+
+### P7-02 Authentication
+- [ ] Firebase Auth integration (Email + Google)
+- [ ] Session persistence + secure sign-out flows
+- [ ] Route guards and onboarding/auth gating
+
+### P7-03 Firestore data model + rules
+- [ ] Define Firestore collections (users, accounts, transactions, budgets, recurring, debts)
+- [ ] Security rules scoped by `request.auth.uid`
+- [ ] Composite indexes for dashboard/analytics queries
+
+### P7-04 Hybrid migration strategy (SQLite -> Firestore)
+- [ ] Keep SQLite as local cache/fallback during migration
+- [ ] One-time migration tool (local data push to Firestore)
+- [ ] Bidirectional sync service with conflict policy (last-write-wins + audit timestamps)
+
+### P7-05 Reliability & observability
+- [ ] Crashlytics integration + non-fatal error logging
+- [ ] Firebase Analytics event taxonomy (capture, edit, budget, debt, reminder)
+- [ ] Sync health diagnostics screen (last sync, pending writes, retry status)
+
+### P7-06 Release hardening
+- [ ] Rollout by feature flag (internal -> beta -> full)
+- [ ] Fallback mode to local-only when Firebase unavailable
+- [ ] Backfill tests for auth/sync/rules critical paths
+
 ---
 
 ## ADHD UX Layer (Cross-phase, aligned to roadmap)
