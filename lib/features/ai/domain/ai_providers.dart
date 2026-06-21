@@ -11,7 +11,7 @@ import '../../transactions/domain/transaction.dart';
 import 'ai_services.dart';
 
 final aiServicesProvider = Provider<AiServices?>((ref) {
-  final client = ref.watch(anthropicClientProvider);
+  final client = ref.watch(llmClientProvider);
   return client == null ? null : AiServices(client);
 });
 

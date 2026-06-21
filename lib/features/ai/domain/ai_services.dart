@@ -1,4 +1,4 @@
-import '../../../core/ai/anthropic_client.dart';
+import '../../../core/ai/llm_client.dart';
 import '../../transactions/domain/transaction.dart';
 
 /// A structured draft produced by the AI from natural language or a receipt.
@@ -29,7 +29,7 @@ class ParsedTransaction {
 
 class AiServices {
   AiServices(this.client);
-  final AnthropicClient client;
+  final LlmClient client;
 
   static String _today() => DateTime.now().toIso8601String().split('T').first;
 
@@ -133,7 +133,6 @@ class AiServices {
       toolName: 'extraer_recibo',
       toolDescription: 'Extrae el total, comercio, fecha y categoría de un recibo.',
       inputSchema: _txSchema,
-      model: 'claude-haiku-4-5',
       maxTokens: 1024,
     );
     final parsed = _fromInput(input);
@@ -150,7 +149,7 @@ class AiServices {
   }
 
   /// Generates short, actionable spending insights from a textual summary.
-  Future<List<String>> generateInsights(String summary, {String? model}) async {
+  Future<List<String>> generateInsights(String summary) async {
     final input = await client.extractStructured(
       system:
           'Eres un coach financiero para usuarios en México. A partir del resumen de gastos, das de 2 a 4 '
@@ -169,7 +168,6 @@ class AiServices {
         },
         'required': ['insights'],
       },
-      model: model ?? 'claude-sonnet-4-6',
       maxTokens: 700,
     );
     final list = (input['insights'] as List?) ?? const [];

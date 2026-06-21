@@ -93,7 +93,7 @@ class _AiInsightsScreenState extends ConsumerState<AiInsightsScreen> {
           DsCard(
             padding: const EdgeInsets.all(14),
             child: Text(
-              'Configura tu API key de Anthropic en Ajustes → IA para generar insights.',
+              'Configura un proveedor de IA en Ajustes → IA para generar insights.',
               style: theme.textTheme.bodyMedium,
             ),
           )

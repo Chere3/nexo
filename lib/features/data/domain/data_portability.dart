@@ -72,16 +72,44 @@ class DataPortability {
   static List<Map<String, dynamic>> _dumpTable(String table) {
     try {
       final rows = LocalStore.db.select('SELECT * FROM $table');
-      return rows.map((r) {
+      final out = <Map<String, dynamic>>[];
+      for (final r in rows) {
         final m = <String, dynamic>{};
         for (final c in r.keys) {
           m[c] = r[c];
         }
-        return m;
-      }).toList();
+        if (table == 'app_meta') {
+          final redacted = _redactSecretMeta(m);
+          if (redacted == null) continue; // drop the row entirely
+          out.add(redacted);
+        } else {
+          out.add(m);
+        }
+      }
+      return out;
     } catch (_) {
       return const [];
     }
+  }
+
+  /// Keeps AI API keys out of shareable backups. Returns null to drop the row.
+  /// Provider settings (model/baseUrl) are kept so a restore re-creates the
+  /// profiles; only the secret key is blanked and the user re-enters it.
+  static Map<String, dynamic>? _redactSecretMeta(Map<String, dynamic> row) {
+    final key = row['key'];
+    if (key == 'ai_api_key') return null; // legacy single key — never export
+    if (key == 'ai_providers') {
+      try {
+        final list = jsonDecode(row['value'] as String) as List;
+        for (final p in list) {
+          if (p is Map && p.containsKey('apiKey')) p['apiKey'] = '';
+        }
+        return {...row, 'value': jsonEncode(list)};
+      } catch (_) {
+        return null; // unparseable → drop to be safe
+      }
+    }
+    return row;
   }
 
   /// Restores a full backup produced by [backupJson]. Upserts every row.

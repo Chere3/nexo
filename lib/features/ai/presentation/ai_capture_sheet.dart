@@ -122,7 +122,7 @@ class _AiCaptureSheetState extends ConsumerState<_AiCaptureSheet> {
                 child: ListTile(
                   leading: const Icon(Icons.key_rounded),
                   title: const Text('Configura la IA'),
-                  subtitle: const Text('Agrega tu API key de Anthropic en Ajustes → IA para usar esta función.'),
+                  subtitle: const Text('Elige un proveedor (Anthropic, OpenAI-compatible o IA local) en Ajustes → IA para usar esta función.'),
                 ),
               )
             else ...[

@@ -2,38 +2,37 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// Thrown when an Anthropic API call fails or returns an unusable response.
-class AiException implements Exception {
-  AiException(this.message);
-  final String message;
-  @override
-  String toString() => 'AiException: $message';
-}
+import 'llm_client.dart';
 
-/// An image to attach to a vision request (e.g. a receipt photo).
-class AiImage {
-  AiImage({required this.base64Data, this.mediaType = 'image/jpeg'});
-  final String base64Data;
-  final String mediaType;
-}
+// Re-export the shared AI types so existing `import 'anthropic_client.dart'`
+// sites keep compiling after the multi-provider refactor.
+export 'llm_client.dart' show AiException, AiImage;
 
-/// Minimal raw-HTTP client for the Anthropic Messages API.
+/// Raw-HTTP client for the Anthropic Messages API.
 ///
 /// Dart has no official Anthropic SDK, so this talks to `POST /v1/messages`
 /// directly. Structured output is obtained via forced tool use: we declare a
 /// single tool with the desired JSON Schema and set tool_choice to that tool,
 /// then read the validated `input` object back from the tool_use block.
-class AnthropicClient {
-  AnthropicClient({required this.apiKey, this.defaultModel = 'claude-haiku-4-5'});
+class AnthropicClient implements LlmClient {
+  AnthropicClient({
+    required this.apiKey,
+    this.defaultModel = 'claude-haiku-4-5',
+    http.Client? httpClient,
+  }) : _http = httpClient ?? http.Client();
 
   final String apiKey;
+  @override
   final String defaultModel;
+  final http.Client _http;
+
+  @override
+  String get label => 'Anthropic';
 
   static const _endpoint = 'https://api.anthropic.com/v1/messages';
   static const _version = '2023-06-01';
 
-  /// Forces Claude to return a JSON object matching [inputSchema] via tool use.
-  /// Returns the parsed tool input. Optional [images] enable vision (receipts).
+  @override
   Future<Map<String, dynamic>> extractStructured({
     required String system,
     required String userText,
@@ -79,7 +78,7 @@ class AnthropicClient {
     throw AiException('La respuesta no incluyó datos estructurados.');
   }
 
-  /// Plain text completion (used for free-form insights).
+  @override
   Future<String> complete({
     required String system,
     required String userText,
@@ -108,7 +107,7 @@ class AnthropicClient {
   Future<Map<String, dynamic>> _post(Map<String, dynamic> body) async {
     http.Response res;
     try {
-      res = await http
+      res = await _http
           .post(
             Uri.parse(_endpoint),
             headers: {
