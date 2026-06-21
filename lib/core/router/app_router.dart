@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/accounts/presentation/accounts_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/transactions/domain/transaction.dart';
 import '../../features/transactions/presentation/add_transaction_screen.dart';
@@ -39,6 +40,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/category-limits',
         name: 'category-limits',
         builder: (context, state) => const CategoryLimitsScreen(),
+      ),
+      GoRoute(
+        path: '/accounts',
+        name: 'accounts',
+        builder: (context, state) => const AccountsScreen(),
       ),
     ],
   );

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import '../../../core/db/local_store.dart';
 import 'currency.dart';
@@ -11,25 +12,15 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
     load();
   }
 
+  static const _columns =
+      'id, title, amount, category, date, type, account, currency, note, account_id, category_id, kind, transfer_account_id, goal_id, paid, exchange_rate, created_at, updated_at';
+
   void load() {
     final rows = LocalStore.db.select(
-      'SELECT id, title, amount, category, date, type, account, currency FROM transactions ORDER BY date DESC',
+      'SELECT $_columns FROM transactions ORDER BY date DESC',
     );
 
-    state = rows
-        .map(
-          (r) => FinanceEntry(
-            id: r['id'] as String,
-            title: r['title'] as String,
-            amount: (r['amount'] as num).toDouble(),
-            category: r['category'] as String,
-            date: DateTime.parse(r['date'] as String),
-            type: (r['type'] as String) == 'income' ? EntryType.income : EntryType.expense,
-            account: (r['account'] as String?) ?? 'Efectivo',
-            currency: (r['currency'] as String?) ?? 'MXN',
-          ),
-        )
-        .toList();
+    state = rows.map(_fromRow).toList();
 
     final seeded = _isSeeded();
 
@@ -45,9 +36,35 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
     }
   }
 
+  FinanceEntry _fromRow(Row r) {
+    DateTime? parseOpt(Object? v) => v == null ? null : DateTime.tryParse(v as String);
+    return FinanceEntry(
+      id: r['id'] as String,
+      title: r['title'] as String,
+      amount: (r['amount'] as num).toDouble(),
+      category: r['category'] as String,
+      date: DateTime.parse(r['date'] as String),
+      type: (r['type'] as String) == 'income' ? EntryType.income : EntryType.expense,
+      account: (r['account'] as String?) ?? 'Efectivo',
+      currency: (r['currency'] as String?) ?? 'MXN',
+      note: r['note'] as String?,
+      accountId: r['account_id'] as String?,
+      categoryId: r['category_id'] as String?,
+      kind: (r['kind'] as String?) == 'transfer' ? EntryKind.transfer : EntryKind.standard,
+      transferAccountId: r['transfer_account_id'] as String?,
+      goalId: r['goal_id'] as String?,
+      paid: ((r['paid'] as num?)?.toInt() ?? 1) == 1,
+      exchangeRate: (r['exchange_rate'] as num?)?.toDouble(),
+      createdAt: parseOpt(r['created_at']),
+      updatedAt: parseOpt(r['updated_at']),
+    );
+  }
+
   void add(FinanceEntry entry) {
+    final now = DateTime.now();
     LocalStore.db.execute(
-      'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT OR REPLACE INTO transactions ($_columns) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         entry.id,
         entry.title,
@@ -57,13 +74,36 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         entry.type == EntryType.income ? 'income' : 'expense',
         entry.account,
         entry.currency,
+        entry.note,
+        entry.accountId,
+        entry.categoryId,
+        entry.kind == EntryKind.transfer ? 'transfer' : 'standard',
+        entry.transferAccountId,
+        entry.goalId,
+        entry.paid ? 1 : 0,
+        entry.exchangeRate,
+        (entry.createdAt ?? now).toIso8601String(),
+        now.toIso8601String(),
       ],
     );
     load();
   }
 
+  /// Convenience alias — INSERT OR REPLACE already upserts by id.
+  void update(FinanceEntry entry) => add(entry);
+
   void remove(String id) {
     LocalStore.db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+    LocalStore.db.execute('DELETE FROM transaction_labels WHERE transaction_id = ?', [id]);
+    load();
+  }
+
+  /// Marks an unpaid/planned movement as realized.
+  void markPaid(String id, {bool paid = true}) {
+    LocalStore.db.execute(
+      'UPDATE transactions SET paid = ?, updated_at = ? WHERE id = ?',
+      [paid ? 1 : 0, DateTime.now().toIso8601String(), id],
+    );
     load();
   }
 
@@ -88,7 +128,8 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
         final category = isIncome ? 'Ingresos' : categories[rnd.nextInt(categories.length - 1)];
 
         LocalStore.db.execute(
-          'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency, kind, paid, created_at, updated_at) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             'demo-${DateTime.now().microsecondsSinceEpoch}-$i',
             isIncome ? 'Ingreso demo ${i + 1}' : 'Gasto demo ${i + 1}',
@@ -98,6 +139,10 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
             isIncome ? 'income' : 'expense',
             accounts[rnd.nextInt(accounts.length)],
             currency,
+            'standard',
+            1,
+            date.toIso8601String(),
+            date.toIso8601String(),
           ],
         );
       }
@@ -166,19 +211,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
     ];
 
     for (final entry in seed) {
-      LocalStore.db.execute(
-        'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          entry.id,
-          entry.title,
-          entry.amount,
-          entry.category,
-          entry.date.toIso8601String(),
-          entry.type == EntryType.income ? 'income' : 'expense',
-          entry.account,
-          entry.currency,
-        ],
-      );
+      add(entry);
     }
   }
 }
@@ -187,18 +220,21 @@ final transactionsProvider = StateNotifierProvider<TransactionsNotifier, List<Fi
   (ref) => TransactionsNotifier(),
 );
 
+/// Realized, non-transfer movements — the basis for income/expense/balance.
+bool _countsAsFlow(FinanceEntry e) => e.paid && e.kind != EntryKind.transfer;
+
 final totalIncomeProvider = Provider<double>((ref) {
   return ref
       .watch(transactionsProvider)
-      .where((e) => e.type == EntryType.income)
-      .fold(0.0, (sum, e) => sum + e.amount);
+      .where((e) => _countsAsFlow(e) && e.type == EntryType.income)
+      .fold(0.0, (sum, e) => sum + toMxn(e.amount, e.currency));
 });
 
 final totalExpenseProvider = Provider<double>((ref) {
   return ref
       .watch(transactionsProvider)
-      .where((e) => e.type == EntryType.expense)
-      .fold(0.0, (sum, e) => sum + e.amount);
+      .where((e) => _countsAsFlow(e) && e.type == EntryType.expense)
+      .fold(0.0, (sum, e) => sum + toMxn(e.amount, e.currency));
 });
 
 final balanceProvider = Provider<double>((ref) {
@@ -211,7 +247,7 @@ final spentByCategoryProvider = Provider<Map<String, double>>((ref) {
 
   final map = <String, double>{};
   for (final e in entries) {
-    if (e.type != EntryType.expense) continue;
+    if (e.type != EntryType.expense || !_countsAsFlow(e)) continue;
     if (e.date.year != now.year || e.date.month != now.month) continue;
     map[e.category] = (map[e.category] ?? 0) + toMxn(e.amount, e.currency);
   }

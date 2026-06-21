@@ -418,6 +418,14 @@ class _DashboardTab extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('debts'),
         ),
+        const SizedBox(height: 10),
+        DsListTile(
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'Cuentas y patrimonio',
+          subtitle: 'Saldos por cuenta, transferencias y patrimonio neto',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('accounts'),
+        ),
         const SizedBox(height: 18),
         Row(
           children: [

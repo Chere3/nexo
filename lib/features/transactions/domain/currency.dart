@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 const supportedCurrencies = ['MXN', 'USD', 'EUR'];
 
 const mxnPerCurrency = {
@@ -6,7 +8,37 @@ const mxnPerCurrency = {
   'EUR': 18.5,
 };
 
+const _symbols = {
+  'MXN': r'$',
+  'USD': r'US$',
+  'EUR': '€',
+};
+
 double toMxn(double amount, String currency) {
   final rate = mxnPerCurrency[currency] ?? 1.0;
   return amount * rate;
+}
+
+/// Convert using a rate captured at entry time when available, so historical
+/// totals stay stable as live rates drift. Falls back to the static table.
+double toMxnWithRate(double amount, String currency, double? storedRate) {
+  if (storedRate != null && storedRate > 0) return amount * storedRate;
+  return toMxn(amount, currency);
+}
+
+String currencySymbol(String currency) => _symbols[currency] ?? '\$';
+
+/// Compact money formatting used across the new feature screens.
+String formatMoney(num amount, {String currency = 'MXN', bool withSymbol = true, int decimals = 2}) {
+  final f = NumberFormat.currency(
+    locale: 'es_MX',
+    symbol: withSymbol ? currencySymbol(currency) : '',
+    decimalDigits: decimals,
+  );
+  return f.format(amount).trim();
+}
+
+/// Whole-peso variant for dense UI (e.g. budget bars).
+String formatMoneyShort(num amount, {String currency = 'MXN'}) {
+  return formatMoney(amount, currency: currency, decimals: 0);
 }
