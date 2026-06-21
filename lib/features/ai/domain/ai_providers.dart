@@ -56,7 +56,7 @@ FinanceEntry entryFromParsed(
     accountId: acc?.id,
     currency: p.currency,
     note: p.note,
-    exchangeRate: mxnPerCurrency[p.currency],
+    exchangeRate: effectiveMxnRate(p.currency),
     createdAt: DateTime.now(),
   );
 }

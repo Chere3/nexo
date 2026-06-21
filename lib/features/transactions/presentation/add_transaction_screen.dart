@@ -263,7 +263,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       kind: isTransfer ? EntryKind.transfer : EntryKind.standard,
       transferAccountId: isTransfer ? toAcc?.id : null,
       note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-      exchangeRate: mxnPerCurrency[_currency],
+      exchangeRate: effectiveMxnRate(_currency),
       createdAt: initial?.createdAt,
     );
 

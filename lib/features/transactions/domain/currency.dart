@@ -2,11 +2,22 @@ import 'package:intl/intl.dart';
 
 const supportedCurrencies = ['MXN', 'USD', 'EUR'];
 
+/// Static fallback rates (MXN per 1 unit). Used until live rates are fetched.
 const mxnPerCurrency = {
   'MXN': 1.0,
   'USD': 17.0,
   'EUR': 18.5,
 };
+
+/// Live MXN-per-unit rates, populated by the FX service when available.
+/// Mutable global so the pure conversion helpers can prefer fresh rates.
+final Map<String, double> liveMxnPerCurrency = <String, double>{};
+
+/// Best available rate for [currency]: live first, then the static fallback.
+double effectiveMxnRate(String currency) {
+  if (currency == 'MXN') return 1.0;
+  return liveMxnPerCurrency[currency] ?? mxnPerCurrency[currency] ?? 1.0;
+}
 
 const _symbols = {
   'MXN': r'$',
@@ -15,8 +26,7 @@ const _symbols = {
 };
 
 double toMxn(double amount, String currency) {
-  final rate = mxnPerCurrency[currency] ?? 1.0;
-  return amount * rate;
+  return amount * effectiveMxnRate(currency);
 }
 
 /// Convert using a rate captured at entry time when available, so historical

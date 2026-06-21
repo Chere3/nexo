@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/fx/fx_service.dart';
 import '../../../core/security/app_lock.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
@@ -1261,6 +1262,28 @@ class _SettingsTab extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         const DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
+        Builder(builder: (context) {
+          final fx = ref.watch(fxProvider);
+          final subtitle = fx.loading
+              ? 'Actualizando…'
+              : (fx.updatedAt == null
+                  ? 'Usando tasas estáticas · toca para actualizar'
+                  : 'Actualizado ${DateFormat('d MMM HH:mm', 'es_MX').format(fx.updatedAt!)}');
+          return DsListTile(
+            icon: Icons.currency_exchange_rounded,
+            title: 'Tipos de cambio',
+            subtitle: subtitle,
+            trailing: const Icon(Icons.refresh_rounded),
+            onTap: () async {
+              final ok = await ref.read(fxProvider.notifier).refresh();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? 'Tasas actualizadas' : 'No se pudieron actualizar las tasas')),
+                );
+              }
+            },
+          );
+        }),
         const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
         DsListTile(
           icon: Icons.auto_awesome_rounded,
