@@ -8,6 +8,7 @@ import '../../features/budgets/presentation/budgets_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/data/presentation/data_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
+import '../../features/home/presentation/home_customize_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/labels/presentation/labels_screen.dart';
 import '../../features/notifications/presentation/reminders_screen.dart';
@@ -99,6 +100,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/labels',
         name: 'labels',
         builder: (context, state) => const LabelsScreen(),
+      ),
+      GoRoute(
+        path: '/home-customize',
+        name: 'home-customize',
+        builder: (context, state) => const HomeCustomizeScreen(),
       ),
     ],
   );

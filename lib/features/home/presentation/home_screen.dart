@@ -17,6 +17,7 @@ import '../../transactions/domain/recurring_transaction.dart';
 import '../../transactions/domain/recurring_transactions_provider.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../domain/home_layout.dart';
 import '../../../../design_system/components/ds_card.dart';
 import '../../../../design_system/components/ds_empty_state.dart';
 import '../../../../design_system/components/ds_list_tile.dart';
@@ -83,6 +84,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: Text(_index == 0 ? 'Nexo' : _index == 1 ? 'Analytics' : 'Settings'),
         actions: [
+          if (_index == 0)
+            IconButton(
+              tooltip: 'Personalizar inicio',
+              onPressed: () => context.pushNamed('home-customize'),
+              icon: const Icon(Icons.dashboard_customize_outlined),
+            ),
           IconButton(
             tooltip: 'Captura con IA',
             onPressed: () => showAiCaptureSheet(context, ref),
@@ -397,28 +404,13 @@ class _DashboardTab extends StatelessWidget {
         ? accountFilter
         : (accountItems.isNotEmpty ? accountItems.first : null);
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      children: [
-        Text(
-          'Controla tu dinero, sin fricción.',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: selectedAccount,
-          items: accountItems.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
-          onChanged: (v) {
-            if (v != null) onAccountChanged(v);
-          },
-          decoration: const InputDecoration(
-            labelText: 'Cuenta activa',
-            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
-          ),
-        ),
-        const SizedBox(height: 10),
+    // Each customizable module maps to its widgets (incl. trailing spacing).
+    final sections = <HomeModule, List<Widget>>{
+      HomeModule.balance: [
         _BalanceHero(balance: balance, income: income, expense: expense),
         const SizedBox(height: 12),
+      ],
+      HomeModule.debts: [
         DsListTile(
           icon: Icons.handshake_outlined,
           title: 'Deudas y préstamos',
@@ -429,6 +421,8 @@ class _DashboardTab extends StatelessWidget {
           onTap: () => context.pushNamed('debts'),
         ),
         const SizedBox(height: 10),
+      ],
+      HomeModule.accounts: [
         DsListTile(
           icon: Icons.account_balance_wallet_outlined,
           title: 'Cuentas y patrimonio',
@@ -437,6 +431,8 @@ class _DashboardTab extends StatelessWidget {
           onTap: () => context.pushNamed('accounts'),
         ),
         const SizedBox(height: 12),
+      ],
+      HomeModule.hub: [
         GridView.count(
           crossAxisCount: 3,
           shrinkWrap: true,
@@ -460,42 +456,79 @@ class _DashboardTab extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 18),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Gastos por categoría', icon: Icons.pie_chart_outline_rounded),
-          ],
-        ),
+      ],
+      HomeModule.pie: [
+        const Row(children: [DsSectionTitle(title: 'Gastos por categoría', icon: Icons.pie_chart_outline_rounded)]),
         const SizedBox(height: 8),
         ExpensePieChart(entries: entries),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Tendencia semanal', icon: Icons.show_chart_rounded),
-          ],
-        ),
+      ],
+      HomeModule.line: [
+        const Row(children: [DsSectionTitle(title: 'Tendencia semanal', icon: Icons.show_chart_rounded)]),
         const SizedBox(height: 8),
         SpendingLineChart(entries: entries),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Próximos pagos', icon: Icons.schedule_rounded),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => context.pushNamed('recurring'),
-              icon: const Icon(Icons.edit_calendar_rounded),
-              label: const Text('Gestionar'),
+      ],
+      HomeModule.upcoming: _upcomingSection(context),
+      HomeModule.recent: _recentSection(context),
+    };
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final layout = ref.watch(homeLayoutProvider);
+        final children = <Widget>[
+          Text(
+            'Controla tu dinero, sin fricción.',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: selectedAccount,
+            items: accountItems.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
+            onChanged: (v) {
+              if (v != null) onAccountChanged(v);
+            },
+            decoration: const InputDecoration(
+              labelText: 'Cuenta activa',
+              prefixIcon: Icon(Icons.account_balance_wallet_outlined),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (upcomingPayments.isEmpty)
-          const DsEmptyState(
-            icon: Icons.schedule_rounded,
-            title: 'Sin pagos próximos',
-            message: 'No hay pagos programados en los próximos 30 días.',
-          )
-        else
-          ...upcomingPayments.map<Widget>((p) {
+          ),
+          const SizedBox(height: 10),
+        ];
+        for (final m in layout.order) {
+          if (!layout.isVisible(m)) continue;
+          children.addAll(sections[m] ?? const []);
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          children: children,
+        );
+      },
+    );
+  }
+
+  List<Widget> _upcomingSection(BuildContext context) {
+    return [
+      Row(
+        children: [
+          const DsSectionTitle(title: 'Próximos pagos', icon: Icons.schedule_rounded),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => context.pushNamed('recurring'),
+            icon: const Icon(Icons.edit_calendar_rounded),
+            label: const Text('Gestionar'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      if (upcomingPayments.isEmpty)
+        const DsEmptyState(
+          icon: Icons.schedule_rounded,
+          title: 'Sin pagos próximos',
+          message: 'No hay pagos programados en los próximos 30 días.',
+        )
+      else
+        ...upcomingPayments.map<Widget>((p) {
             final isExpense = p.type == EntryType.expense;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
@@ -558,28 +591,32 @@ class _DashboardTab extends StatelessWidget {
             );
           }),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Movimientos recientes', icon: Icons.receipt_long_rounded),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => context.pushNamed('transactions'),
-              icon: const Icon(Icons.search_rounded, size: 18),
-              label: const Text('Ver todos'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (entries.isEmpty)
-          const DsEmptyState(
-            icon: Icons.wallet_outlined,
-            title: 'Aún no tienes movimientos',
-            message: 'Empieza agregando tu primer gasto o ingreso.',
-          )
-        else
-          ...entries.take(10).map((e) => _EntryTile(entry: e, money: money)),
-      ],
-    );
+      ];
+  }
+
+  List<Widget> _recentSection(BuildContext context) {
+    return [
+      Row(
+        children: [
+          const DsSectionTitle(title: 'Movimientos recientes', icon: Icons.receipt_long_rounded),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => context.pushNamed('transactions'),
+            icon: const Icon(Icons.search_rounded, size: 18),
+            label: const Text('Ver todos'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      if (entries.isEmpty)
+        const DsEmptyState(
+          icon: Icons.wallet_outlined,
+          title: 'Aún no tienes movimientos',
+          message: 'Empieza agregando tu primer gasto o ingreso.',
+        )
+      else
+        ...entries.take(10).map((e) => _EntryTile(entry: e, money: money)),
+    ];
   }
 
   String _dueTag(DateTime dueDate) {
