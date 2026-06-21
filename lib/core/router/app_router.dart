@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_screen.dart';
 import '../../features/ai/presentation/ai_insights_screen.dart';
+import '../../features/analytics/presentation/reports_screen.dart';
 import '../../features/ai/presentation/ai_settings_screen.dart';
 import '../../features/budgets/presentation/budgets_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
@@ -105,6 +106,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/home-customize',
         name: 'home-customize',
         builder: (context, state) => const HomeCustomizeScreen(),
+      ),
+      GoRoute(
+        path: '/reports',
+        name: 'reports',
+        builder: (context, state) => const ReportsScreen(),
       ),
     ],
   );
