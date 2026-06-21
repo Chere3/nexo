@@ -403,11 +403,6 @@ class _DashboardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accountItems = {...accounts}.toList();
-    final selectedAccount = accountItems.contains(accountFilter)
-        ? accountFilter
-        : (accountItems.isNotEmpty ? accountItems.first : null);
-
     // Each customizable module maps to its widgets (incl. trailing spacing).
     final sections = <HomeModule, List<Widget>>{
       HomeModule.balance: [
@@ -460,15 +455,10 @@ class _DashboardTab extends StatelessWidget {
       builder: (context, ref, _) {
         final layout = ref.watch(homeLayoutProvider);
         final children = <Widget>[
-          Row(
-            children: [
-              Expanded(
-                child: Text(_greeting(), style: Theme.of(context).textTheme.headlineSmall),
-              ),
-              _accountSelector(context, selectedAccount, accountItems),
-            ],
-          ),
+          Text(_greeting(), style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 14),
+          HomeAccountCards(selected: accountFilter, onSelect: onAccountChanged),
+          const SizedBox(height: 18),
         ];
         for (final m in layout.order) {
           if (!layout.isVisible(m)) continue;
@@ -487,33 +477,6 @@ class _DashboardTab extends StatelessWidget {
     if (h < 12) return 'Buenos días';
     if (h < 19) return 'Buenas tardes';
     return 'Buenas noches';
-  }
-
-  Widget _accountSelector(BuildContext context, String? selected, List<String> items) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.only(left: 14, right: 6),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selected,
-          isDense: true,
-          borderRadius: BorderRadius.circular(16),
-          icon: const Icon(Icons.expand_more_rounded, size: 20),
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: scheme.onSurface,
-              ),
-          items: items.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
-          onChanged: (v) {
-            if (v != null) onAccountChanged(v);
-          },
-        ),
-      ),
-    );
   }
 
   List<Widget> _upcomingSection(BuildContext context) {
