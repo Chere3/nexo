@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -16,6 +17,7 @@ import '../../budgets/domain/budgets_provider.dart';
 import '../../categories/domain/categories_provider.dart';
 import '../../goals/domain/goals_provider.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../domain/auto_backup.dart';
 import '../domain/data_portability.dart';
 
 class DataScreen extends ConsumerWidget {
@@ -75,6 +77,8 @@ class DataScreen extends ConsumerWidget {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        const _AutoBackupSection(),
         const SizedBox(height: 12),
         Text(
           'Los respaldos se generan en el dispositivo. Guárdalos en un lugar seguro: contienen tu información financiera.',
@@ -179,5 +183,116 @@ class DataScreen extends ConsumerWidget {
       ),
     );
     return ok ?? false;
+  }
+}
+
+class _AutoBackupSection extends ConsumerStatefulWidget {
+  const _AutoBackupSection();
+
+  @override
+  ConsumerState<_AutoBackupSection> createState() => _AutoBackupSectionState();
+}
+
+class _AutoBackupSectionState extends ConsumerState<_AutoBackupSection> {
+  bool _busy = false;
+
+  void _refreshAll() {
+    ref.read(transactionsProvider.notifier).load();
+    ref.read(accountsProvider.notifier).load();
+    ref.read(categoriesProvider.notifier).load();
+    ref.read(budgetsProvider.notifier).load();
+    ref.read(goalsProvider.notifier).load();
+  }
+
+  Future<void> _restore(File file) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restaurar respaldo automático'),
+        content: const Text('Se combinarán estos datos con los actuales. ¿Continuar?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Restaurar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final result = DataPortability.restoreBackup(await file.readAsString());
+      _refreshAll();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo restaurar: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final last = AutoBackup.lastBackupAt;
+    final df = DateFormat('d MMM yyyy · HH:mm', 'es_MX');
+
+    return DsCard(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            secondary: const Icon(Icons.cloud_sync_rounded),
+            title: const Text('Respaldos automáticos'),
+            subtitle: Text(last == null ? 'Genera un respaldo al abrir la app' : 'Último: ${df.format(last)}'),
+            value: AutoBackup.enabled,
+            onChanged: (v) {
+              setState(() => AutoBackup.setEnabled(v));
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          setState(() => _busy = true);
+                          try {
+                            await AutoBackup.runNow();
+                            messenger.showSnackBar(const SnackBar(content: Text('Respaldo creado')));
+                          } finally {
+                            if (mounted) setState(() => _busy = false);
+                          }
+                        },
+                  icon: const Icon(Icons.save_rounded, size: 18),
+                  label: const Text('Respaldar ahora'),
+                ),
+              ],
+            ),
+          ),
+          FutureBuilder<List<File>>(
+            future: AutoBackup.listBackups(),
+            builder: (context, snapshot) {
+              final files = snapshot.data ?? const <File>[];
+              if (files.isEmpty) return const SizedBox(height: 8);
+              return Column(
+                children: [
+                  const SizedBox(height: 4),
+                  ...files.take(5).map((f) => ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.history_rounded),
+                        title: Text(p.basename(f.path), style: theme.textTheme.bodySmall),
+                        trailing: TextButton(onPressed: () => _restore(f), child: const Text('Restaurar')),
+                      )),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 }
