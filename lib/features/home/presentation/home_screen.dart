@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/fx/fx_service.dart';
 import '../../../core/security/app_lock.dart';
+import '../../../core/theme/theme_settings.dart';
+import '../../../core/ui/entity_palette.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
@@ -1284,7 +1286,21 @@ class _SettingsTab extends ConsumerWidget {
             },
           );
         }),
-        const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
+        Builder(builder: (context) {
+          final ts = ref.watch(themeSettingsProvider);
+          final modeLabel = ts.mode == ThemeMode.light
+              ? 'Claro'
+              : ts.mode == ThemeMode.dark
+                  ? 'Oscuro'
+                  : 'Sistema';
+          return DsListTile(
+            icon: Icons.palette_outlined,
+            title: 'Tema y color',
+            subtitle: '$modeLabel · ${ts.accent == null ? 'Color dinámico' : 'Acento personalizado'}',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _showThemeSheet(context, ref),
+          );
+        }),
         DsListTile(
           icon: Icons.auto_awesome_rounded,
           title: 'Inteligencia artificial',
@@ -1479,4 +1495,64 @@ class _HubTile extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showThemeSheet(BuildContext context, WidgetRef ref) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (_) => Consumer(
+      builder: (context, ref, _) {
+        final ts = ref.watch(themeSettingsProvider);
+        final notifier = ref.read(themeSettingsProvider.notifier);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tema y color',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 16),
+              Text('Modo', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<ThemeMode>(
+                segments: const [
+                  ButtonSegment(value: ThemeMode.system, label: Text('Sistema'), icon: Icon(Icons.brightness_auto_rounded)),
+                  ButtonSegment(value: ThemeMode.light, label: Text('Claro'), icon: Icon(Icons.light_mode_rounded)),
+                  ButtonSegment(value: ThemeMode.dark, label: Text('Oscuro'), icon: Icon(Icons.dark_mode_rounded)),
+                ],
+                selected: {ts.mode},
+                onSelectionChanged: (s) => notifier.setMode(s.first),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text('Color de acento', style: Theme.of(context).textTheme.labelLarge),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => notifier.setAccent(null),
+                    child: const Text('Dinámico'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ColorSwatchPicker(
+                selected: ts.accent ?? -1,
+                onSelect: (c) => notifier.setAccent(c),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                ts.accent == null
+                    ? 'Usando Material You (color del sistema cuando está disponible).'
+                    : 'Acento personalizado activo.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
