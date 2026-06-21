@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/ai/ai_config.dart';
 import '../../../core/util/ids.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_feature_header.dart';
@@ -12,6 +13,7 @@ import '../../../design_system/components/ds_screen_scaffold.dart';
 import '../../../design_system/components/ds_select.dart';
 import '../../accounts/domain/account.dart';
 import '../../accounts/domain/accounts_provider.dart';
+import '../../ai/domain/ai_providers.dart';
 import '../../categories/domain/categories_provider.dart';
 import '../../categories/domain/category.dart';
 import '../domain/currency.dart';
@@ -42,6 +44,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   String _currency = 'MXN';
   late DateTime _date;
   bool _initialized = false;
+  bool _suggesting = false;
 
   @override
   void initState() {
@@ -164,6 +167,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     items: cats.map((c) => DropdownMenuItem(value: c.id, child: Text('${c.emoji} ${c.name}'))).toList(),
                     onChanged: (v) => setState(() => _categoryId = v),
                   ),
+                  if (ref.watch(aiReadyProvider))
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _suggesting ? null : () => _suggestCategory(cats),
+                        icon: _suggesting
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('Sugerir categoría (IA)'),
+                      ),
+                    ),
                 ],
                 const SizedBox(height: 12),
                 DsSelect<String>(
@@ -216,6 +230,36 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       items: accounts.map((a) => DropdownMenuItem(value: a.id, child: Text('${a.icon} ${a.name}'))).toList(),
       onChanged: onChanged,
     );
+  }
+
+  Future<void> _suggestCategory(List<Category> cats) async {
+    final title = _title.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Escribe primero el concepto.')),
+      );
+      return;
+    }
+    final svc = ref.read(aiServicesProvider);
+    if (svc == null) return;
+    setState(() => _suggesting = true);
+    try {
+      final name = await svc.suggestCategory(title, categories: cats.map((c) => c.name).toList());
+      if (name != null) {
+        for (final c in cats) {
+          if (c.name.toLowerCase() == name.toLowerCase()) {
+            setState(() => _categoryId = c.id);
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No se pudo sugerir: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _suggesting = false);
+    }
   }
 
   void _submit() {
