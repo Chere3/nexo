@@ -47,16 +47,17 @@ Product roadmap based on phased delivery.
 - [x] P3-05 Analytics Period Hub (overview de periodos → detalle seleccionado)
 
 ## Phase 4 — Data Portability & Reliability
-- [ ] CSV import/export
-- [ ] Backup/restore
+- [x] CSV import/export
+- [x] Backup/restore (full JSON, upsert restore)
 - [ ] Optional cloud sync
-- [ ] Data migration strategy/versioning
+- [x] Data migration strategy/versioning (`PRAGMA user_version` runner)
 
 ## Phase 5 — Product Quality & OSS Maturity
-- [ ] Expanded test suite (unit/widget/integration)
+- [x] Expanded test suite (unit + DB-migration tests; DI seam for in-memory DB)
 - [ ] Performance profiling and optimization
 - [ ] Accessibility audit (contrast, touch targets, semantics)
 - [ ] Contributor onboarding improvements
+- [x] CI: analyze + `flutter test --coverage` + Android build gate
 - [ ] Release process and changelog automation
 
 ## Phase 6 — Android Studio Deployment & Release Readiness ✅
@@ -101,6 +102,35 @@ Goal: move Nexo to a managed cloud data + auth + observability stack while keepi
 - [ ] Rollout by feature flag (internal -> beta -> full)
 - [ ] Fallback mode to local-only when Firebase unavailable
 - [ ] Backfill tests for auth/sync/rules critical paths
+
+---
+
+## Phase 8 — Cashew Parity + AI (delivered)
+Goal: reach feature parity with Cashew, enhanced with on-device-friendly AI.
+
+### Core finance
+- [x] Accounts as entities: balances, transfers, net worth
+- [x] Categories as entities: emoji/color/type, subcategories
+- [x] Budgets: weekly/monthly/yearly/custom cycles, category filters, pacing
+- [x] Savings goals: contributions, deadline, suggested monthly
+- [x] Transactions: search + filters, transfers, notes, date picker, swipe-delete
+- [x] Labels/tags + per-transaction labeling
+- [x] Multi-currency with live FX rates (cached, static fallback)
+
+### AI (Anthropic Messages API, raw HTTP — no Dart SDK)
+- [x] Natural-language capture ("café 45 ayer con débito")
+- [x] Receipt OCR via vision (camera/gallery)
+- [x] Auto-categorization (also surfaced in the manual add flow)
+- [x] Spending insights / financial coach
+- [x] Opt-in API key + model selection (Haiku default)
+
+### Platform
+- [x] Local notifications for upcoming payments
+- [x] Biometric / device-credential app lock
+- [x] Theme mode + accent color customization
+- [x] Spanish (es-MX) localization delegates
+- [ ] Money as integer cents (correctness refactor — pending)
+- [ ] AutoCapture (Android notification → transaction — separate design)
 
 ---
 

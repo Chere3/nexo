@@ -10,12 +10,17 @@ It helps users track expenses/income, monitor budgets, and understand spending t
 
 ## ✨ Highlights
 
-- Material Design 3 (Material You)
-- Dynamic color support when available
-- Expense & income tracking
-- Category-level monthly budget progress
-- Weekly/monthly analytics charts
-- Local persistence (SQLite)
+- Material Design 3 (Material You) with theme mode + accent customization
+- Accounts with balances, transfers and net worth
+- Categories (emoji/color/subcategories) and labels/tags
+- Cashew-style budgets (weekly/monthly/yearly/custom) with spending pace
+- Savings goals, recurring payments and debts
+- Searchable, filterable transactions with notes and transfers
+- Multi-currency with live exchange rates (cached, static fallback)
+- AI capture: natural language, receipt OCR, auto-categorization, insights (Anthropic)
+- CSV import/export and full JSON backup/restore
+- Local payment reminders and biometric app lock
+- Local persistence (SQLite) with versioned migrations
 - Feature-first architecture with Riverpod
 
 ## 🧱 Tech Stack

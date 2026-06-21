@@ -14,18 +14,13 @@ class AppTheme {
       materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
       textTheme: dsTextTheme(scheme),
-      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
+      scaffoldBackgroundColor: scheme.surfaceContainer,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         scrolledUnderElevation: 0,
-        backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: 0.92),
+        backgroundColor: scheme.surfaceContainer,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(
-          fontSize: 23,
-          fontWeight: FontWeight.w900,
-          color: scheme.onSurface,
-          letterSpacing: -0.3,
-        ),
+        titleTextStyle: dsTextTheme(scheme).headlineSmall,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -44,13 +39,12 @@ class AppTheme {
         shape: const RoundedRectangleBorder(borderRadius: DsRadius.brXl),
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
-        color: scheme.surfaceContainerLow,
+        elevation: 1,
+        color: scheme.surfaceContainerLowest,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: scheme.shadow.withValues(alpha: 0.38),
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: DsRadius.brLg,
-          side: BorderSide(color: scheme.outlineVariant),
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: DsRadius.brXl),
       ),
       chipTheme: ChipThemeData(
         shape: const StadiumBorder(),
@@ -116,18 +110,13 @@ class AppTheme {
       materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
       textTheme: dsTextTheme(scheme),
-      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
+      scaffoldBackgroundColor: scheme.surfaceContainer,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         scrolledUnderElevation: 0,
-        backgroundColor: scheme.surfaceContainerLowest.withValues(alpha: 0.92),
+        backgroundColor: scheme.surfaceContainer,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(
-          fontSize: 23,
-          fontWeight: FontWeight.w900,
-          color: scheme.onSurface,
-          letterSpacing: -0.3,
-        ),
+        titleTextStyle: dsTextTheme(scheme).headlineSmall,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -147,11 +136,12 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: scheme.surfaceContainerLow,
+        color: scheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: DsRadius.brLg,
-          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          borderRadius: DsRadius.brXl,
+          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.22)),
         ),
       ),
       chipTheme: ChipThemeData(

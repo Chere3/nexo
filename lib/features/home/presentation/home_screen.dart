@@ -4,6 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/fx/fx_service.dart';
+import '../../../core/i18n/language_settings.dart';
+import '../../../core/security/app_lock.dart';
+import '../../../core/theme/theme_settings.dart';
+import '../../../core/ui/entity_palette.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../ai/presentation/ai_capture_sheet.dart';
+import '../../ai/presentation/ai_suggestions_card.dart';
+import '../../ai/presentation/planning_screen.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
 import '../../transactions/domain/currency.dart';
@@ -12,6 +21,8 @@ import '../../transactions/domain/recurring_transaction.dart';
 import '../../transactions/domain/recurring_transactions_provider.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../domain/home_layout.dart';
+import 'home_modules.dart';
 import '../../../../design_system/components/ds_card.dart';
 import '../../../../design_system/components/ds_empty_state.dart';
 import '../../../../design_system/components/ds_list_tile.dart';
@@ -71,16 +82,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onAccountChanged: (v) => setState(() => _accountFilter = v),
       ),
       _AnalyticsTab(entries: visibleEntries, ref: ref),
+      const PlanningScreen(embedded: true),
       const _SettingsTab(),
     ];
 
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_index == 0 ? 'Nexo' : _index == 1 ? 'Analytics' : 'Settings'),
+        title: Text(switch (_index) {
+          0 => l10n.appTitle,
+          1 => l10n.navAnalytics,
+          2 => 'Planning',
+          _ => l10n.navSettings,
+        }),
         actions: [
+          if (_index == 0)
+            IconButton(
+              tooltip: 'Personalizar inicio',
+              onPressed: () => context.pushNamed('home-customize'),
+              icon: const Icon(Icons.dashboard_customize_outlined),
+            ),
           IconButton(
-            tooltip: 'Notificaciones',
-            onPressed: () {},
+            tooltip: 'Captura con IA',
+            onPressed: () => showAiCaptureSheet(context, ref),
+            icon: const Icon(Icons.auto_awesome_rounded),
+          ),
+          IconButton(
+            tooltip: 'Recordatorios',
+            onPressed: () => context.pushNamed('reminders'),
             icon: const Icon(Icons.notifications_none_rounded),
           ),
         ],
@@ -104,10 +133,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (v) => setState(() => _index = v),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Analytics'),
-          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune_rounded), label: 'Settings'),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: l10n.navHome),
+          NavigationDestination(icon: const Icon(Icons.insights_outlined), selectedIcon: const Icon(Icons.insights_rounded), label: l10n.navAnalytics),
+          const NavigationDestination(icon: Icon(Icons.auto_graph_outlined), selectedIcon: Icon(Icons.auto_graph_rounded), label: 'Planning'),
+          NavigationDestination(icon: const Icon(Icons.tune_outlined), selectedIcon: const Icon(Icons.tune_rounded), label: l10n.navSettings),
         ],
       ),
     );
@@ -382,33 +412,13 @@ class _DashboardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accountItems = {...accounts}.toList();
-    final selectedAccount = accountItems.contains(accountFilter)
-        ? accountFilter
-        : (accountItems.isNotEmpty ? accountItems.first : null);
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      children: [
-        Text(
-          'Controla tu dinero, sin fricción.',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: selectedAccount,
-          items: accountItems.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
-          onChanged: (v) {
-            if (v != null) onAccountChanged(v);
-          },
-          decoration: const InputDecoration(
-            labelText: 'Cuenta activa',
-            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
-          ),
-        ),
-        const SizedBox(height: 10),
+    // Each customizable module maps to its widgets (incl. trailing spacing).
+    final sections = <HomeModule, List<Widget>>{
+      HomeModule.balance: [
         _BalanceHero(balance: balance, income: income, expense: expense),
         const SizedBox(height: 12),
+      ],
+      HomeModule.debts: [
         DsListTile(
           icon: Icons.handshake_outlined,
           title: 'Deudas y préstamos',
@@ -418,43 +428,89 @@ class _DashboardTab extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('debts'),
         ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Gastos por categoría', icon: Icons.pie_chart_outline_rounded),
-          ],
+        const SizedBox(height: 10),
+      ],
+      HomeModule.accounts: [
+        DsListTile(
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'Cuentas y patrimonio',
+          subtitle: 'Saldos por cuenta, transferencias y patrimonio neto',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('accounts'),
         ),
+        const SizedBox(height: 12),
+      ],
+      HomeModule.hub: const [HomeQuickActions(), SizedBox(height: 18)],
+      HomeModule.aiSuggestions: const [AiSuggestionsCard(embedded: true), SizedBox(height: 16)],
+      HomeModule.budgetsSummary: const [HomeBudgetsModule(), SizedBox(height: 16)],
+      HomeModule.goalsSummary: const [HomeGoalsModule(), SizedBox(height: 16)],
+      HomeModule.accountsList: const [HomeAccountsModule(), SizedBox(height: 16)],
+      HomeModule.pie: [
+        const Row(children: [DsSectionTitle(title: 'Gastos por categoría', icon: Icons.pie_chart_outline_rounded)]),
         const SizedBox(height: 8),
         ExpensePieChart(entries: entries),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Tendencia semanal', icon: Icons.show_chart_rounded),
-          ],
-        ),
+      ],
+      HomeModule.line: [
+        const Row(children: [DsSectionTitle(title: 'Tendencia semanal', icon: Icons.show_chart_rounded)]),
         const SizedBox(height: 8),
         SpendingLineChart(entries: entries),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Próximos pagos', icon: Icons.schedule_rounded),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => context.pushNamed('recurring'),
-              icon: const Icon(Icons.edit_calendar_rounded),
-              label: const Text('Gestionar'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (upcomingPayments.isEmpty)
-          const DsEmptyState(
-            icon: Icons.schedule_rounded,
-            title: 'Sin pagos próximos',
-            message: 'No hay pagos programados en los próximos 30 días.',
-          )
-        else
-          ...upcomingPayments.map<Widget>((p) {
+      ],
+      HomeModule.upcoming: _upcomingSection(context),
+      HomeModule.recent: _recentSection(context),
+    };
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final layout = ref.watch(homeLayoutProvider);
+        final children = <Widget>[
+          Text(_greeting(), style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 14),
+          HomeAccountCards(selected: accountFilter, onSelect: onAccountChanged),
+          const SizedBox(height: 18),
+        ];
+        for (final m in layout.order) {
+          if (!layout.isVisible(m)) continue;
+          children.addAll(sections[m] ?? const []);
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 104),
+          children: children,
+        );
+      },
+    );
+  }
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Buenos días';
+    if (h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  List<Widget> _upcomingSection(BuildContext context) {
+    return [
+      Row(
+        children: [
+          const DsSectionTitle(title: 'Próximos pagos', icon: Icons.schedule_rounded),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => context.pushNamed('recurring'),
+            icon: const Icon(Icons.edit_calendar_rounded),
+            label: const Text('Gestionar'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      if (upcomingPayments.isEmpty)
+        const DsEmptyState(
+          icon: Icons.schedule_rounded,
+          title: 'Sin pagos próximos',
+          message: 'No hay pagos programados en los próximos 30 días.',
+        )
+      else
+        ...upcomingPayments.map<Widget>((p) {
             final isExpense = p.type == EntryType.expense;
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
@@ -517,22 +573,32 @@ class _DashboardTab extends StatelessWidget {
             );
           }),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const DsSectionTitle(title: 'Movimientos recientes', icon: Icons.receipt_long_rounded),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (entries.isEmpty)
-          const DsEmptyState(
-            icon: Icons.wallet_outlined,
-            title: 'Aún no tienes movimientos',
-            message: 'Empieza agregando tu primer gasto o ingreso.',
-          )
-        else
-          ...entries.take(10).map((e) => _EntryTile(entry: e, money: money)),
-      ],
-    );
+      ];
+  }
+
+  List<Widget> _recentSection(BuildContext context) {
+    return [
+      Row(
+        children: [
+          const DsSectionTitle(title: 'Movimientos recientes', icon: Icons.receipt_long_rounded),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => context.pushNamed('transactions'),
+            icon: const Icon(Icons.search_rounded, size: 18),
+            label: const Text('Ver todos'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      if (entries.isEmpty)
+        const DsEmptyState(
+          icon: Icons.wallet_outlined,
+          title: 'Aún no tienes movimientos',
+          message: 'Empieza agregando tu primer gasto o ingreso.',
+        )
+      else
+        ...entries.take(10).map((e) => _EntryTile(entry: e, money: money)),
+    ];
   }
 
   String _dueTag(DateTime dueDate) {
@@ -1218,8 +1284,88 @@ class _SettingsTab extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         const DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
-        const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
-        const DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+        Builder(builder: (context) {
+          final fx = ref.watch(fxProvider);
+          final subtitle = fx.loading
+              ? 'Actualizando…'
+              : (fx.updatedAt == null
+                  ? 'Usando tasas estáticas · toca para actualizar'
+                  : 'Actualizado ${DateFormat('d MMM HH:mm', 'es_MX').format(fx.updatedAt!)}');
+          return DsListTile(
+            icon: Icons.currency_exchange_rounded,
+            title: 'Tipos de cambio',
+            subtitle: subtitle,
+            trailing: const Icon(Icons.refresh_rounded),
+            onTap: () async {
+              final ok = await ref.read(fxProvider.notifier).refresh();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ok ? 'Tasas actualizadas' : 'No se pudieron actualizar las tasas')),
+                );
+              }
+            },
+          );
+        }),
+        Builder(builder: (context) {
+          final ts = ref.watch(themeSettingsProvider);
+          final modeLabel = ts.mode == ThemeMode.light
+              ? 'Claro'
+              : ts.mode == ThemeMode.dark
+                  ? 'Oscuro'
+                  : 'Sistema';
+          return DsListTile(
+            icon: Icons.palette_outlined,
+            title: 'Tema y color',
+            subtitle: '$modeLabel · ${ts.accent == null ? 'Color dinámico' : 'Acento personalizado'}',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _showThemeSheet(context, ref),
+          );
+        }),
+        DsListTile(
+          icon: Icons.auto_awesome_rounded,
+          title: 'Inteligencia artificial',
+          subtitle: 'API key, modelo, captura por IA',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('ai-settings'),
+        ),
+        Builder(builder: (context) {
+          final locale = ref.watch(languageProvider);
+          final lang = locale == null ? 'system' : locale.languageCode;
+          final l10n = AppLocalizations.of(context);
+          final label = lang == 'es'
+              ? l10n.languageSpanish
+              : lang == 'en'
+                  ? l10n.languageEnglish
+                  : l10n.languageSystem;
+          return DsListTile(
+            icon: Icons.translate_rounded,
+            title: l10n.language,
+            subtitle: label,
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _showLanguageSheet(context, ref),
+          );
+        }),
+        SwitchListTile(
+          secondary: const Icon(Icons.lock_outline_rounded),
+          title: const Text('Bloqueo con biometría'),
+          subtitle: const Text('Pide huella/rostro o PIN al abrir Nexo'),
+          value: ref.watch(appLockProvider).enabled,
+          onChanged: (v) async {
+            final ok = await ref.read(appLockProvider.notifier).setEnabled(v);
+            if (!ok && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No se pudo configurar el bloqueo (autenticación fallida).')),
+              );
+            }
+          },
+        ),
+        DsListTile(
+          icon: Icons.import_export_rounded,
+          title: 'Datos y respaldos',
+          subtitle: 'Exportar CSV, respaldo completo y restaurar',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('data'),
+        ),
         DsListTile(
           icon: Icons.science_outlined,
           title: 'Cargar datos demo',
@@ -1280,9 +1426,9 @@ class _BalanceHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Balance actual', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Text(balance, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 4),
+            Text(balance, style: Theme.of(context).textTheme.displaySmall),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(child: DsStatCard(label: 'Ingresos', value: income, icon: Icons.trending_up_rounded)),
@@ -1350,3 +1496,102 @@ class _EntryTile extends ConsumerWidget {
   }
 }
 
+
+Future<void> _showThemeSheet(BuildContext context, WidgetRef ref) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (_) => Consumer(
+      builder: (context, ref, _) {
+        final ts = ref.watch(themeSettingsProvider);
+        final notifier = ref.read(themeSettingsProvider.notifier);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tema y color',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 16),
+              Text('Modo', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              SegmentedButton<ThemeMode>(
+                segments: const [
+                  ButtonSegment(value: ThemeMode.system, label: Text('Sistema'), icon: Icon(Icons.brightness_auto_rounded)),
+                  ButtonSegment(value: ThemeMode.light, label: Text('Claro'), icon: Icon(Icons.light_mode_rounded)),
+                  ButtonSegment(value: ThemeMode.dark, label: Text('Oscuro'), icon: Icon(Icons.dark_mode_rounded)),
+                ],
+                selected: {ts.mode},
+                onSelectionChanged: (s) => notifier.setMode(s.first),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text('Color de acento', style: Theme.of(context).textTheme.labelLarge),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => notifier.setAccent(null),
+                    child: const Text('Dinámico'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ColorSwatchPicker(
+                selected: ts.accent ?? -1,
+                onSelect: (c) => notifier.setAccent(c),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                ts.accent == null
+                    ? 'Usando Material You (color del sistema cuando está disponible).'
+                    : 'Acento personalizado activo.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _showLanguageSheet(BuildContext context, WidgetRef ref) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (_) => Consumer(
+      builder: (context, ref, _) {
+        final l10n = AppLocalizations.of(context);
+        final current = ref.watch(languageProvider);
+        final currentKey = current == null ? 'system' : current.languageCode;
+        final notifier = ref.read(languageProvider.notifier);
+        Widget option(String key, String label) => ListTile(
+              title: Text(label),
+              trailing: currentKey == key ? const Icon(Icons.check_rounded) : null,
+              onTap: () {
+                notifier.setLanguage(key);
+                Navigator.pop(context);
+              },
+            );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(l10n.language,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+              ),
+              option('system', l10n.languageSystem),
+              option('es', l10n.languageSpanish),
+              option('en', l10n.languageEnglish),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
