@@ -436,32 +436,7 @@ class _DashboardTab extends StatelessWidget {
         ),
         const SizedBox(height: 12),
       ],
-      HomeModule.hub: [
-        GridView.count(
-          crossAxisCount: 3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 1.0,
-          children: [
-            _HubTile(icon: Icons.account_balance_rounded, label: 'Presupuestos', onTap: () => context.pushNamed('budgets')),
-            _HubTile(icon: Icons.savings_rounded, label: 'Metas', onTap: () => context.pushNamed('goals')),
-            _HubTile(icon: Icons.category_rounded, label: 'Categorías', onTap: () => context.pushNamed('categories')),
-            _HubTile(icon: Icons.sell_rounded, label: 'Etiquetas', onTap: () => context.pushNamed('labels')),
-            _HubTile(icon: Icons.insights_rounded, label: 'Reportes', onTap: () => context.pushNamed('reports')),
-            _HubTile(icon: Icons.tips_and_updates_rounded, label: 'Insights IA', onTap: () => context.pushNamed('ai-insights')),
-            Consumer(
-              builder: (context, ref, _) => _HubTile(
-                icon: Icons.auto_awesome_rounded,
-                label: 'Captura IA',
-                onTap: () => showAiCaptureSheet(context, ref),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-      ],
+      HomeModule.hub: const [HomeQuickActions(), SizedBox(height: 18)],
       HomeModule.budgetsSummary: const [HomeBudgetsModule(), SizedBox(height: 16)],
       HomeModule.goalsSummary: const [HomeGoalsModule(), SizedBox(height: 16)],
       HomeModule.accountsList: const [HomeAccountsModule(), SizedBox(height: 16)],
@@ -485,23 +460,21 @@ class _DashboardTab extends StatelessWidget {
       builder: (context, ref, _) {
         final layout = ref.watch(homeLayoutProvider);
         final children = <Widget>[
-          Text(
-            'Controla tu dinero, sin fricción.',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _greeting(),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                ),
+              ),
+              _accountSelector(context, selectedAccount, accountItems),
+            ],
           ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: selectedAccount,
-            items: accountItems.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
-            onChanged: (v) {
-              if (v != null) onAccountChanged(v);
-            },
-            decoration: const InputDecoration(
-              labelText: 'Cuenta activa',
-              prefixIcon: Icon(Icons.account_balance_wallet_outlined),
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
         ];
         for (final m in layout.order) {
           if (!layout.isVisible(m)) continue;
@@ -512,6 +485,40 @@ class _DashboardTab extends StatelessWidget {
           children: children,
         );
       },
+    );
+  }
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Buenos días';
+    if (h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  Widget _accountSelector(BuildContext context, String? selected, List<String> items) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.only(left: 14, right: 6),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          isDense: true,
+          borderRadius: BorderRadius.circular(16),
+          icon: const Icon(Icons.expand_more_rounded, size: 20),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+          items: items.map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
+          onChanged: (v) {
+            if (v != null) onAccountChanged(v);
+          },
+        ),
+      ),
     );
   }
 
@@ -1522,43 +1529,6 @@ class _EntryTile extends ConsumerWidget {
   }
 }
 
-
-class _HubTile extends StatelessWidget {
-  const _HubTile({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: scheme.primary, size: 26),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 Future<void> _showThemeSheet(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet<void>(

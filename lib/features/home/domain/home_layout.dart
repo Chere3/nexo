@@ -82,6 +82,15 @@ class HomeLayout {
 
   bool isVisible(HomeModule m) => !hidden.contains(m);
 
+  /// Hidden on a fresh install to keep the default home clean: the standalone
+  /// debts/accounts tiles and the duplicate accounts list are reachable from the
+  /// quick-action chips, so they start off and can be enabled in customization.
+  static const defaultHidden = <HomeModule>{
+    HomeModule.debts,
+    HomeModule.accounts,
+    HomeModule.accountsList,
+  };
+
   HomeLayout copyWith({List<HomeModule>? order, Set<HomeModule>? hidden}) =>
       HomeLayout(order: order ?? this.order, hidden: hidden ?? this.hidden);
 }
@@ -103,14 +112,15 @@ class HomeLayoutController extends StateNotifier<HomeLayout> {
 
   void _load() {
     final orderStr = _meta('home_order');
-    final hiddenStr = _meta('home_hidden');
+    final firstRun = orderStr.isEmpty;
 
     final order = _parse(orderStr);
     // Any modules not present in the saved order (e.g. new ones) are appended.
     for (final m in HomeModule.values) {
       if (!order.contains(m)) order.add(m);
     }
-    final hidden = _parse(hiddenStr).toSet();
+    // First run gets the curated clean default; afterwards respect saved state.
+    final hidden = firstRun ? Set.of(HomeLayout.defaultHidden) : _parse(_meta('home_hidden')).toSet();
     state = HomeLayout(order: order, hidden: hidden);
   }
 

@@ -5,10 +5,65 @@ import 'package:go_router/go_router.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_section_title.dart';
 import '../../accounts/domain/accounts_provider.dart';
+import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../budgets/domain/budget.dart';
 import '../../budgets/domain/budgets_provider.dart';
 import '../../goals/domain/goals_provider.dart';
 import '../../transactions/domain/currency.dart';
+
+/// Horizontally scrollable quick-action chips — a single clean row that scales
+/// to any number of destinations (replaces the uneven grid of tiles).
+class HomeQuickActions extends ConsumerWidget {
+  const HomeQuickActions({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final actions = <(IconData, String, VoidCallback)>[
+      (Icons.account_balance_wallet_rounded, 'Cuentas', () => context.pushNamed('accounts')),
+      (Icons.handshake_rounded, 'Deudas', () => context.pushNamed('debts')),
+      (Icons.account_balance_rounded, 'Presupuestos', () => context.pushNamed('budgets')),
+      (Icons.savings_rounded, 'Metas', () => context.pushNamed('goals')),
+      (Icons.category_rounded, 'Categorías', () => context.pushNamed('categories')),
+      (Icons.sell_rounded, 'Etiquetas', () => context.pushNamed('labels')),
+      (Icons.insights_rounded, 'Reportes', () => context.pushNamed('reports')),
+      (Icons.tips_and_updates_rounded, 'Insights IA', () => context.pushNamed('ai-insights')),
+      (Icons.auto_awesome_rounded, 'Captura IA', () => showAiCaptureSheet(context, ref)),
+    ];
+
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        physics: const BouncingScrollPhysics(),
+        itemCount: actions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final (icon, label, onTap) = actions[i];
+          return Material(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(21),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 18, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
 
 Widget _header(BuildContext context, String title, IconData icon, String route) {
   return Row(
