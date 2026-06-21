@@ -1,5 +1,6 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
@@ -32,6 +33,13 @@ class NexoApp extends ConsumerWidget {
           darkTheme: AppTheme.dark(dynamicScheme: darkScheme),
           themeMode: themeSettings.mode,
           routerConfig: router,
+          locale: const Locale('es', 'MX'),
+          supportedLocales: const [Locale('es', 'MX'), Locale('es'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
         );
       },
