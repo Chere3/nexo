@@ -4,7 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/db/local_store.dart';
 
 /// Customizable dashboard modules, in their default order.
-enum HomeModule { balance, debts, accounts, hub, pie, line, upcoming, recent }
+enum HomeModule {
+  balance,
+  debts,
+  accounts,
+  hub,
+  budgetsSummary,
+  goalsSummary,
+  accountsList,
+  pie,
+  line,
+  upcoming,
+  recent,
+}
 
 extension HomeModuleX on HomeModule {
   String get label {
@@ -17,6 +29,12 @@ extension HomeModuleX on HomeModule {
         return 'Cuentas y patrimonio';
       case HomeModule.hub:
         return 'Accesos rápidos';
+      case HomeModule.budgetsSummary:
+        return 'Resumen de presupuestos';
+      case HomeModule.goalsSummary:
+        return 'Resumen de metas';
+      case HomeModule.accountsList:
+        return 'Lista de cuentas';
       case HomeModule.pie:
         return 'Gastos por categoría';
       case HomeModule.line:
@@ -38,6 +56,12 @@ extension HomeModuleX on HomeModule {
         return Icons.savings_outlined;
       case HomeModule.hub:
         return Icons.grid_view_rounded;
+      case HomeModule.budgetsSummary:
+        return Icons.account_balance_rounded;
+      case HomeModule.goalsSummary:
+        return Icons.savings_rounded;
+      case HomeModule.accountsList:
+        return Icons.account_balance_wallet_rounded;
       case HomeModule.pie:
         return Icons.pie_chart_outline_rounded;
       case HomeModule.line:

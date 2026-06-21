@@ -20,6 +20,7 @@ import '../../transactions/domain/recurring_transactions_provider.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
 import '../domain/home_layout.dart';
+import 'home_modules.dart';
 import '../../../../design_system/components/ds_card.dart';
 import '../../../../design_system/components/ds_empty_state.dart';
 import '../../../../design_system/components/ds_list_tile.dart';
@@ -461,6 +462,9 @@ class _DashboardTab extends StatelessWidget {
         ),
         const SizedBox(height: 18),
       ],
+      HomeModule.budgetsSummary: const [HomeBudgetsModule(), SizedBox(height: 16)],
+      HomeModule.goalsSummary: const [HomeGoalsModule(), SizedBox(height: 16)],
+      HomeModule.accountsList: const [HomeAccountsModule(), SizedBox(height: 16)],
       HomeModule.pie: [
         const Row(children: [DsSectionTitle(title: 'Gastos por categoría', icon: Icons.pie_chart_outline_rounded)]),
         const SizedBox(height: 8),
