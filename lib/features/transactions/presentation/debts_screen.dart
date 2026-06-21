@@ -115,23 +115,34 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             )
           else
             ...debts.map((d) {
-              final pending = d.status == DebtStatus.pending;
+              final settled = d.isSettled;
+              final subtitle = settled
+                  ? 'Liquidado'
+                  : (d.paidAmount > 0
+                      ? 'Restan ${money.format(d.remaining)} de ${money.format(d.amount)}'
+                      : 'Pendiente');
               return DsListTile(
                 icon: d.kind == DebtKind.lent ? Icons.call_received_rounded : Icons.call_made_rounded,
                 title: '${d.person} · ${d.concept}',
-                subtitle: pending ? 'Pendiente' : 'Liquidado',
+                subtitle: subtitle,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${d.kind == DebtKind.borrowed ? '-' : '+'}${money.format(d.amount)}',
+                      '${d.kind == DebtKind.borrowed ? '-' : '+'}${money.format(settled ? d.amount : d.remaining)}',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         color: d.kind == DebtKind.borrowed ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
                       ),
                     ),
+                    if (!settled)
+                      IconButton(
+                        tooltip: 'Registrar abono',
+                        onPressed: () => _registerPayment(d),
+                        icon: const Icon(Icons.payments_outlined),
+                      ),
                     Checkbox(
-                      value: !pending,
+                      value: settled,
                       onChanged: (v) => _onSettleChanged(d, v ?? false),
                     ),
                     IconButton(
@@ -167,6 +178,35 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     _amount.clear();
 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registro guardado')));
+  }
+
+  Future<void> _registerPayment(DebtEntry debt) async {
+    final ctrl = TextEditingController(text: debt.remaining.toStringAsFixed(0));
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Abono · ${debt.person}'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: 'Monto del abono', prefixText: '\$ '),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              final v = double.tryParse(ctrl.text.trim().replaceAll(',', '.'));
+              if (v == null || v <= 0) return;
+              Navigator.pop(context, v);
+            },
+            child: const Text('Registrar'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (amount != null) ref.read(debtsProvider.notifier).registerPayment(debt.id, amount);
   }
 
   void _onSettleChanged(DebtEntry debt, bool settled) {

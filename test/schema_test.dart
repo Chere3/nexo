@@ -30,7 +30,7 @@ void main() {
       }
 
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 3);
+      expect(version, 4);
       db.dispose();
     });
 
@@ -39,7 +39,7 @@ void main() {
       LocalStore.applySchema(db);
       LocalStore.applySchema(db);
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 3);
+      expect(version, 4);
       db.dispose();
     });
 
@@ -76,7 +76,7 @@ void main() {
       expect(row['currency'], 'MXN');
       expect(row['kind'], 'standard');
       expect((row['paid'] as num).toInt(), 1);
-      expect(db.select('PRAGMA user_version').first['user_version'], 3);
+      expect(db.select('PRAGMA user_version').first['user_version'], 4);
       db.dispose();
     });
   });

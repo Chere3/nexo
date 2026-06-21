@@ -15,7 +15,7 @@ class LocalStore {
   static late final Database db;
 
   /// Current target schema version. Increment when adding a migration.
-  static const int _schemaVersion = 3;
+  static const int _schemaVersion = 4;
 
   static Future<void> init() async {
     final dir = await getApplicationSupportDirectory();
@@ -116,6 +116,7 @@ class LocalStore {
       db.execute('BEGIN');
       if (current < 2) _migrateTo2(db);
       if (current < 3) _migrateTo3(db);
+      if (current < 4) _migrateTo4(db);
       db.execute('PRAGMA user_version = $_schemaVersion');
       db.execute('COMMIT');
     } catch (e, st) {
@@ -235,5 +236,14 @@ class LocalStore {
     db.execute('CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id)');
     db.execute('CREATE INDEX IF NOT EXISTS idx_tx_kind ON transactions(kind)');
     db.execute('CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id)');
+  }
+
+  /// v4 — partial debt payments: track how much of a debt has been paid.
+  static void _migrateTo4(Database db) {
+    final cols = db.select('PRAGMA table_info(debts)');
+    final hasPaid = cols.any((c) => (c['name'] as String) == 'paid_amount');
+    if (!hasPaid) {
+      db.execute('ALTER TABLE debts ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0');
+    }
   }
 }
