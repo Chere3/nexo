@@ -3,9 +3,9 @@ import 'package:flutter/widgets.dart';
 abstract final class DsRadius {
   static const xs = Radius.circular(8);
   static const sm = Radius.circular(12);
-  static const md = Radius.circular(16);
-  static const lg = Radius.circular(22);
-  static const xl = Radius.circular(28);
+  static const md = Radius.circular(18);
+  static const lg = Radius.circular(24);
+  static const xl = Radius.circular(30);
   static const full = Radius.circular(999);
 
   static const brXs = BorderRadius.all(xs);

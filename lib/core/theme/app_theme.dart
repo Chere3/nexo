@@ -42,9 +42,9 @@ class AppTheme {
         elevation: 1,
         color: scheme.surfaceContainerLowest,
         surfaceTintColor: Colors.transparent,
-        shadowColor: scheme.shadow.withValues(alpha: 0.45),
+        shadowColor: scheme.shadow.withValues(alpha: 0.38),
         margin: EdgeInsets.zero,
-        shape: const RoundedRectangleBorder(borderRadius: DsRadius.brLg),
+        shape: const RoundedRectangleBorder(borderRadius: DsRadius.brXl),
       ),
       chipTheme: ChipThemeData(
         shape: const StadiumBorder(),
@@ -140,7 +140,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: DsRadius.brLg,
+          borderRadius: DsRadius.brXl,
           side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.22)),
         ),
       ),

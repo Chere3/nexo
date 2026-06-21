@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_empty_state.dart';
@@ -10,6 +9,7 @@ import '../../transactions/domain/currency.dart';
 import '../domain/budget.dart';
 import '../domain/budgets_provider.dart';
 import 'budget_editor.dart';
+import 'budget_widgets.dart';
 
 class BudgetsScreen extends ConsumerWidget {
   const BudgetsScreen({super.key});
@@ -54,19 +54,15 @@ class _BudgetCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final b = progress.budget;
     final now = DateTime.now();
-    final ratio = progress.ratio.clamp(0.0, 1.0);
     final over = progress.isOverBudget;
-    final ahead = progress.isAheadOfPace(now);
-    final df = DateFormat('d MMM', 'es_MX');
-
-    final barColor = over
+    final ringColor = over
         ? theme.colorScheme.error
-        : (ahead ? Colors.orange : b.colorValue);
+        : (progress.isAheadOfPace(now) ? Colors.orange.shade700 : b.colorValue);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DsCard(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         onTap: () => showBudgetEditor(context, ref, existing: b),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,60 +70,24 @@ class _BudgetCard extends ConsumerWidget {
             Row(
               children: [
                 Container(width: 12, height: 12, decoration: BoxDecoration(color: b.colorValue, shape: BoxShape.circle)),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(b.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(b.name, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                      Text(b.period.label, style: theme.textTheme.bodySmall),
+                    ],
+                  ),
                 ),
-                Text(
-                  '${b.period.label} · ${df.format(progress.cycle.start)}–${df.format(progress.cycle.end.subtract(const Duration(days: 1)))}',
-                  style: theme.textTheme.bodySmall,
-                ),
+                BudgetRing(ratio: progress.ratio, color: ringColor),
               ],
             ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: ratio == 0 ? null : ratio,
-                minHeight: 12,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                color: barColor,
-              ),
-            ),
+            const SizedBox(height: 14),
+            Text('${formatMoney(progress.spent)} de ${formatMoney(b.amount)}',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Text(
-                  '${formatMoney(progress.spent)} de ${formatMoney(b.amount)}',
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const Spacer(),
-                Text(
-                  over
-                      ? 'Excedido ${formatMoney(progress.spent - b.amount)}'
-                      : 'Quedan ${formatMoney(progress.remaining)}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: over ? theme.colorScheme.error : theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-            if (ahead && !over) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(Icons.speed_rounded, size: 16, color: Colors.orange),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Vas por encima del ritmo: ideal ${formatMoney(progress.pacedTarget(now))} a hoy.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: Colors.orange.shade800),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            BudgetPaceBar(progress: progress),
           ],
         ),
       ),

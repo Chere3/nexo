@@ -8,6 +8,7 @@ import '../../accounts/domain/accounts_provider.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../budgets/domain/budget.dart';
 import '../../budgets/domain/budgets_provider.dart';
+import '../../budgets/presentation/budget_widgets.dart';
 import '../../goals/domain/goals_provider.dart';
 import '../../transactions/domain/currency.dart';
 import '../../transactions/domain/transactions_provider.dart';
@@ -267,34 +268,28 @@ class _BudgetMiniRow extends StatelessWidget {
     final theme = Theme.of(context);
     final b = progress.budget;
     final over = progress.isOverBudget;
-    final color = over ? theme.colorScheme.error : (progress.isAheadOfPace(now) ? Colors.orange : b.colorValue);
+    final ringColor = over
+        ? theme.colorScheme.error
+        : (progress.isAheadOfPace(now) ? Colors.orange.shade700 : b.colorValue);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Expanded(child: Text(b.name, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
-            Text(
-              over ? 'Excedido' : '${formatMoneyShort(progress.remaining)} libre',
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: over ? theme.colorScheme.error : theme.colorScheme.onSurfaceVariant,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(b.name, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                  Text('${formatMoney(progress.spent)} de ${formatMoney(b.amount)}', style: theme.textTheme.bodySmall),
+                ],
               ),
             ),
+            BudgetRing(ratio: progress.ratio, color: ringColor, size: 40),
           ],
         ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: progress.ratio.clamp(0.0, 1.0),
-            minHeight: 9,
-            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text('${formatMoney(progress.spent)} de ${formatMoney(b.amount)}', style: theme.textTheme.bodySmall),
+        const SizedBox(height: 10),
+        BudgetPaceBar(progress: progress),
       ],
     );
   }

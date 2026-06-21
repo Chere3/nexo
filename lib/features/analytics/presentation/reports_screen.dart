@@ -9,7 +9,11 @@ import '../../../design_system/components/ds_feature_header.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
 import '../../accounts/domain/accounts_provider.dart';
 import '../../categories/domain/categories_provider.dart';
+import '../../categories/presentation/category_spend_row.dart';
+import '../../transactions/domain/category_limits_provider.dart';
 import '../../transactions/domain/currency.dart';
+import '../../transactions/domain/transaction.dart';
+import '../../transactions/domain/transactions_provider.dart';
 import '../domain/reports_providers.dart';
 
 class ReportsScreen extends ConsumerWidget {
@@ -22,7 +26,20 @@ class ReportsScreen extends ConsumerWidget {
     final cashflow = ref.watch(monthlyCashflowProvider);
     final byCat = ref.watch(spentByCategoryIdProvider);
     final cats = ref.watch(activeCategoriesProvider);
+    final limits = ref.watch(categoryLimitsProvider);
+    final resolveCat = ref.watch(categoryByKeyProvider);
     final theme = Theme.of(context);
+
+    // This-month expense movement counts per category id.
+    final now = DateTime.now();
+    final counts = <String, int>{};
+    for (final e in ref.watch(transactionsProvider)) {
+      if (e.type != EntryType.expense || !e.paid || e.kind == EntryKind.transfer) continue;
+      if (e.date.year != now.year || e.date.month != now.month) continue;
+      final c = resolveCat(e.categoryId, e.category);
+      if (c == null) continue;
+      counts[c.id] = (counts[c.id] ?? 0) + 1;
+    }
 
     return DsScreenScaffold(
       title: 'Reportes',
@@ -91,33 +108,27 @@ class ReportsScreen extends ConsumerWidget {
                   final entries = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
                   final maxV = entries.first.value;
                   return entries.take(8).map((e) {
-                    final cat = cats.where((c) => c.id == e.key);
-                    final name = cat.isEmpty ? e.key : cat.first.name;
-                    final color = cat.isEmpty ? theme.colorScheme.primary : cat.first.colorValue;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: Text(name, style: theme.textTheme.bodyMedium)),
-                              Text(formatMoneyShort(e.value),
-                                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800)),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: maxV <= 0 ? 0 : (e.value / maxV),
-                              minHeight: 8,
-                              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                              color: color,
-                            ),
-                          ),
-                        ],
-                      ),
+                    final list = cats.where((c) => c.id == e.key);
+                    final cat = list.isEmpty ? null : list.first;
+                    final name = cat?.name ?? e.key;
+                    final emoji = cat?.emoji ?? '🏷️';
+                    final color = cat?.colorValue ?? theme.colorScheme.primary;
+                    final limit = cat != null ? limits[cat.name] : null;
+                    final over = limit != null && e.value > limit;
+                    final fill = (limit != null && limit > 0)
+                        ? (e.value / limit)
+                        : (maxV <= 0 ? 0.0 : e.value / maxV);
+                    final amountLabel = limit != null
+                        ? '${formatMoneyShort(e.value)} / ${formatMoneyShort(limit)}'
+                        : formatMoneyShort(e.value);
+                    return CategorySpendRow(
+                      emoji: emoji,
+                      name: name,
+                      color: color,
+                      fill: fill,
+                      amountLabel: amountLabel,
+                      count: counts[e.key] ?? 0,
+                      over: over,
                     );
                   }).toList();
                 }(),
