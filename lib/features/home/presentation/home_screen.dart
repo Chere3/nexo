@@ -463,13 +463,7 @@ class _DashboardTab extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  _greeting(),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
-                      ),
-                ),
+                child: Text(_greeting(), style: Theme.of(context).textTheme.headlineSmall),
               ),
               _accountSelector(context, selectedAccount, accountItems),
             ],
@@ -481,7 +475,7 @@ class _DashboardTab extends StatelessWidget {
           children.addAll(sections[m] ?? const []);
         }
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 104),
           children: children,
         );
       },
@@ -1459,9 +1453,9 @@ class _BalanceHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Balance actual', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 6),
-            Text(balance, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 4),
+            Text(balance, style: Theme.of(context).textTheme.displaySmall),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(child: DsStatCard(label: 'Ingresos', value: income, icon: Icons.trending_up_rounded)),
