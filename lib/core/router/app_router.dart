@@ -9,6 +9,7 @@ import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/data/presentation/data_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/notifications/presentation/reminders_screen.dart';
 import '../../features/transactions/domain/transaction.dart';
 import '../../features/transactions/presentation/add_transaction_screen.dart';
 import '../../features/transactions/presentation/category_limits_screen.dart';
@@ -87,6 +88,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/transactions',
         name: 'transactions',
         builder: (context, state) => const TransactionsScreen(),
+      ),
+      GoRoute(
+        path: '/reminders',
+        name: 'reminders',
+        builder: (context, state) => const RemindersScreen(),
       ),
     ],
   );

@@ -85,8 +85,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: const Icon(Icons.auto_awesome_rounded),
           ),
           IconButton(
-            tooltip: 'Notificaciones',
-            onPressed: () {},
+            tooltip: 'Recordatorios',
+            onPressed: () => context.pushNamed('reminders'),
             icon: const Icon(Icons.notifications_none_rounded),
           ),
         ],
