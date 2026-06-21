@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_screen.dart';
+import '../../features/budgets/presentation/budgets_screen.dart';
+import '../../features/categories/presentation/categories_screen.dart';
+import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/transactions/domain/transaction.dart';
 import '../../features/transactions/presentation/add_transaction_screen.dart';
@@ -45,6 +48,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/accounts',
         name: 'accounts',
         builder: (context, state) => const AccountsScreen(),
+      ),
+      GoRoute(
+        path: '/categories',
+        name: 'categories',
+        builder: (context, state) => const CategoriesScreen(),
+      ),
+      GoRoute(
+        path: '/budgets',
+        name: 'budgets',
+        builder: (context, state) => const BudgetsScreen(),
+      ),
+      GoRoute(
+        path: '/goals',
+        name: 'goals',
+        builder: (context, state) => const GoalsScreen(),
       ),
     ],
   );

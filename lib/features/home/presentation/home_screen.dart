@@ -426,6 +426,20 @@ class _DashboardTab extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('accounts'),
         ),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.0,
+          children: [
+            _HubTile(icon: Icons.account_balance_rounded, label: 'Presupuestos', onTap: () => context.pushNamed('budgets')),
+            _HubTile(icon: Icons.savings_rounded, label: 'Metas', onTap: () => context.pushNamed('goals')),
+            _HubTile(icon: Icons.category_rounded, label: 'Categorías', onTap: () => context.pushNamed('categories')),
+          ],
+        ),
         const SizedBox(height: 18),
         Row(
           children: [
@@ -1358,3 +1372,40 @@ class _EntryTile extends ConsumerWidget {
   }
 }
 
+
+class _HubTile extends StatelessWidget {
+  const _HubTile({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: scheme.primary, size: 26),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
