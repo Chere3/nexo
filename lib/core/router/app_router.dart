@@ -14,6 +14,7 @@ import '../../features/transactions/presentation/add_transaction_screen.dart';
 import '../../features/transactions/presentation/category_limits_screen.dart';
 import '../../features/transactions/presentation/debts_screen.dart';
 import '../../features/transactions/presentation/recurring_transactions_screen.dart';
+import '../../features/transactions/presentation/transactions_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -81,6 +82,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/data',
         name: 'data',
         builder: (context, state) => const DataScreen(),
+      ),
+      GoRoute(
+        path: '/transactions',
+        name: 'transactions',
+        builder: (context, state) => const TransactionsScreen(),
       ),
     ],
   );

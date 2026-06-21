@@ -556,6 +556,12 @@ class _DashboardTab extends StatelessWidget {
         Row(
           children: [
             const DsSectionTitle(title: 'Movimientos recientes', icon: Icons.receipt_long_rounded),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => context.pushNamed('transactions'),
+              icon: const Icon(Icons.search_rounded, size: 18),
+              label: const Text('Ver todos'),
+            ),
           ],
         ),
         const SizedBox(height: 8),
