@@ -1262,7 +1262,13 @@ class _SettingsTab extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('ai-settings'),
         ),
-        const DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
+        DsListTile(
+          icon: Icons.import_export_rounded,
+          title: 'Datos y respaldos',
+          subtitle: 'Exportar CSV, respaldo completo y restaurar',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('data'),
+        ),
         DsListTile(
           icon: Icons.science_outlined,
           title: 'Cargar datos demo',

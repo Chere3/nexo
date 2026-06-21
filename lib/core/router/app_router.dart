@@ -6,6 +6,7 @@ import '../../features/ai/presentation/ai_insights_screen.dart';
 import '../../features/ai/presentation/ai_settings_screen.dart';
 import '../../features/budgets/presentation/budgets_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
+import '../../features/data/presentation/data_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/transactions/domain/transaction.dart';
@@ -75,6 +76,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ai-settings',
         name: 'ai-settings',
         builder: (context, state) => const AiSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/data',
+        name: 'data',
+        builder: (context, state) => const DataScreen(),
       ),
     ],
   );
