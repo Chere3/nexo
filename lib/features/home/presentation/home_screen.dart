@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/fx/fx_service.dart';
+import '../../../core/i18n/language_settings.dart';
 import '../../../core/security/app_lock.dart';
 import '../../../core/theme/theme_settings.dart';
 import '../../../core/ui/entity_palette.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
@@ -80,9 +82,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const _SettingsTab(),
     ];
 
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_index == 0 ? 'Nexo' : _index == 1 ? 'Analytics' : 'Settings'),
+        title: Text(_index == 0 ? l10n.appTitle : _index == 1 ? l10n.navAnalytics : l10n.navSettings),
         actions: [
           if (_index == 0)
             IconButton(
@@ -121,10 +124,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (v) => setState(() => _index = v),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Analytics'),
-          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune_rounded), label: 'Settings'),
+        destinations: [
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: l10n.navHome),
+          NavigationDestination(icon: const Icon(Icons.insights_outlined), selectedIcon: const Icon(Icons.insights_rounded), label: l10n.navAnalytics),
+          NavigationDestination(icon: const Icon(Icons.tune_outlined), selectedIcon: const Icon(Icons.tune_rounded), label: l10n.navSettings),
         ],
       ),
     );
@@ -1347,6 +1350,23 @@ class _SettingsTab extends ConsumerWidget {
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('ai-settings'),
         ),
+        Builder(builder: (context) {
+          final locale = ref.watch(languageProvider);
+          final lang = locale == null ? 'system' : locale.languageCode;
+          final l10n = AppLocalizations.of(context);
+          final label = lang == 'es'
+              ? l10n.languageSpanish
+              : lang == 'en'
+                  ? l10n.languageEnglish
+                  : l10n.languageSystem;
+          return DsListTile(
+            icon: Icons.translate_rounded,
+            title: l10n.language,
+            subtitle: label,
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _showLanguageSheet(context, ref),
+          );
+        }),
         SwitchListTile(
           secondary: const Icon(Icons.lock_outline_rounded),
           title: const Text('Bloqueo con biometría'),
@@ -1588,6 +1608,45 @@ Future<void> _showThemeSheet(BuildContext context, WidgetRef ref) {
                     : 'Acento personalizado activo.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _showLanguageSheet(BuildContext context, WidgetRef ref) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (_) => Consumer(
+      builder: (context, ref, _) {
+        final l10n = AppLocalizations.of(context);
+        final current = ref.watch(languageProvider);
+        final currentKey = current == null ? 'system' : current.languageCode;
+        final notifier = ref.read(languageProvider.notifier);
+        Widget option(String key, String label) => ListTile(
+              title: Text(label),
+              trailing: currentKey == key ? const Icon(Icons.check_rounded) : null,
+              onTap: () {
+                notifier.setLanguage(key);
+                Navigator.pop(context);
+              },
+            );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(l10n.language,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+              ),
+              option('system', l10n.languageSystem),
+              option('es', l10n.languageSpanish),
+              option('en', l10n.languageEnglish),
             ],
           ),
         );

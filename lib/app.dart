@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/i18n/language_settings.dart';
 import 'core/router/app_router.dart';
 import 'core/security/app_lock_gate.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_settings.dart';
+import 'l10n/app_localizations.dart';
 
 class NexoApp extends ConsumerWidget {
   const NexoApp({super.key});
@@ -15,6 +17,7 @@ class NexoApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final themeSettings = ref.watch(themeSettingsProvider);
+    final locale = ref.watch(languageProvider);
 
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
@@ -33,9 +36,10 @@ class NexoApp extends ConsumerWidget {
           darkTheme: AppTheme.dark(dynamicScheme: darkScheme),
           themeMode: themeSettings.mode,
           routerConfig: router,
-          locale: const Locale('es', 'MX'),
-          supportedLocales: const [Locale('es', 'MX'), Locale('es'), Locale('en')],
+          locale: locale,
+          supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: const [
+            AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
