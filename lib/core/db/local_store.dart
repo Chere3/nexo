@@ -28,13 +28,19 @@ class LocalStore {
     db.execute('PRAGMA journal_mode = WAL');
     db.execute('PRAGMA foreign_keys = ON');
 
-    _baseSchema();
-    _runMigrations();
+    applySchema(db);
+  }
+
+  /// Applies the base schema and all migrations to [database]. Extracted so it
+  /// can run against an in-memory database in tests (the DI seam).
+  static void applySchema(Database database) {
+    _baseSchema(database);
+    _runMigrations(database);
   }
 
   /// The original v1 schema, kept as `IF NOT EXISTS` so pre-migration installs
   /// (which never set `user_version`) are not disturbed.
-  static void _baseSchema() {
+  static void _baseSchema(Database db) {
     db.execute('''
       CREATE TABLE IF NOT EXISTS transactions (
         id TEXT PRIMARY KEY,
@@ -102,14 +108,14 @@ class LocalStore {
 
   /// Runs ordered, additive migrations from the stored `user_version` up to
   /// [_schemaVersion]. Wrapped so a failure does not leave a half-applied state.
-  static void _runMigrations() {
+  static void _runMigrations(Database db) {
     final current = db.select('PRAGMA user_version').first['user_version'] as int;
     if (current >= _schemaVersion) return;
 
     try {
       db.execute('BEGIN');
-      if (current < 2) _migrateTo2();
-      if (current < 3) _migrateTo3();
+      if (current < 2) _migrateTo2(db);
+      if (current < 3) _migrateTo3(db);
       db.execute('PRAGMA user_version = $_schemaVersion');
       db.execute('COMMIT');
     } catch (e, st) {
@@ -124,7 +130,7 @@ class LocalStore {
 
   /// v2 — relational model for Cashew parity:
   /// accounts, categories, budgets, goals, labels + richer transaction columns.
-  static void _migrateTo2() {
+  static void _migrateTo2(Database db) {
     db.execute('''
       CREATE TABLE IF NOT EXISTS accounts (
         id TEXT PRIMARY KEY,
@@ -223,7 +229,7 @@ class LocalStore {
   }
 
   /// v3 — helpful indexes for the new query patterns.
-  static void _migrateTo3() {
+  static void _migrateTo3(Database db) {
     db.execute('CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date)');
     db.execute('CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account_id)');
     db.execute('CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id)');

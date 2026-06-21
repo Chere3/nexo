@@ -4,6 +4,12 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Nexo usa la cámara para escanear recibos y crear movimientos automáticamente.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Nexo accede a tus fotos para escanear recibos desde la galería.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Nexo usa Face ID para bloquear y proteger tu información financiera.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
