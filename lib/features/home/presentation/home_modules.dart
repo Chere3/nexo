@@ -156,6 +156,8 @@ class HomeQuickActions extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final actions = <(IconData, String, VoidCallback)>[
+      (Icons.auto_graph_rounded, 'Planning', () => context.pushNamed('planning')),
+      (Icons.forum_rounded, 'Asistente IA', () => context.pushNamed('ai-assistant')),
       (Icons.account_balance_wallet_rounded, 'Cuentas', () => context.pushNamed('accounts')),
       (Icons.handshake_rounded, 'Deudas', () => context.pushNamed('debts')),
       (Icons.account_balance_rounded, 'Presupuestos', () => context.pushNamed('budgets')),

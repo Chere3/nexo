@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -92,7 +93,13 @@ class OnDeviceGemma {
 /// prompting the model for a bare JSON object and parsing it loosely. The
 /// loaded model is cached across calls because loading weights is expensive.
 class OnDeviceGemmaClient implements LlmClient {
-  OnDeviceGemmaClient({required this.modelId, this.maxTokens = 1024});
+  // maxTokens is the model's TOTAL sequence budget (input + output) at load
+  // time. The richer Planning prompts (persona + full financial snapshot + the
+  // embedded JSON schema for structured output) run ~1.2k input tokens, so the
+  // old 1024 budget overflowed ("Input token ids are too long"). Gemma 4
+  // supports a far larger context; 4096 leaves comfortable room for input and
+  // the generated JSON while staying modest on memory.
+  OnDeviceGemmaClient({required this.modelId, this.maxTokens = 4096});
 
   final String modelId;
   final int maxTokens;
@@ -105,6 +112,12 @@ class OnDeviceGemmaClient implements LlmClient {
 
   static InferenceModel? _model;
   static String? _loadedId;
+
+  // A single on-device model can only run one inference session at a time, so
+  // concurrent calls (e.g. Planning auto-generating Análisis + Sugerencias at
+  // once) must be serialized — otherwise the second errors with "Failed to start
+  // streaming". This chained future is a lightweight mutex around [_run].
+  static Future<void> _inferenceLock = Future<void>.value();
 
   Future<InferenceModel> _ensureModel() async {
     await OnDeviceGemma.ensureInitialized();
@@ -140,13 +153,23 @@ class OnDeviceGemmaClient implements LlmClient {
   }
 
   Future<String> _run(String prompt) async {
-    final model = await _ensureModel();
-    final session = await model.createSession();
+    // Serialize: wait for any in-flight inference to finish before starting,
+    // and let the next caller wait for this one — one session at a time.
+    final prior = _inferenceLock;
+    final gate = Completer<void>();
+    _inferenceLock = gate.future;
+    await prior;
     try {
-      await session.addQueryChunk(Message.text(text: prompt, isUser: true));
-      return await session.getResponse();
+      final model = await _ensureModel();
+      final session = await model.createSession();
+      try {
+        await session.addQueryChunk(Message.text(text: prompt, isUser: true));
+        return await session.getResponse();
+      } finally {
+        await session.close();
+      }
     } finally {
-      await session.close();
+      gate.complete();
     }
   }
 

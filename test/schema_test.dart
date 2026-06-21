@@ -25,12 +25,13 @@ void main() {
         'debts',
         'category_limits',
         'app_meta',
+        'ai_plans',
       ]) {
         expect(tables.contains(t), isTrue, reason: 'missing table $t');
       }
 
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 4);
+      expect(version, 5);
       db.close();
     });
 
@@ -39,7 +40,7 @@ void main() {
       LocalStore.applySchema(db);
       LocalStore.applySchema(db);
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 4);
+      expect(version, 5);
       db.close();
     });
 
@@ -76,7 +77,20 @@ void main() {
       expect(row['currency'], 'MXN');
       expect(row['kind'], 'standard');
       expect((row['paid'] as num).toInt(), 1);
-      expect(db.select('PRAGMA user_version').first['user_version'], 4);
+      expect(db.select('PRAGMA user_version').first['user_version'], 5);
+      db.close();
+    });
+
+    test('ai_plans table has the expected columns', () {
+      final db = sqlite3.openInMemory();
+      LocalStore.applySchema(db);
+      final cols = db
+          .select('PRAGMA table_info(ai_plans)')
+          .map((r) => r['name'] as String)
+          .toSet();
+      for (final c in ['id', 'type', 'title', 'body', 'status', 'created_at']) {
+        expect(cols.contains(c), isTrue, reason: 'missing column $c');
+      }
       db.close();
     });
   });

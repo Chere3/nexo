@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/ai/ai_config.dart';
 import '../../../core/ai/ai_provider_catalog.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_feature_header.dart';
+import '../../../design_system/components/ds_list_tile.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
+import 'ai_mode_selector.dart';
 import 'on_device_section.dart';
 
 class AiSettingsScreen extends ConsumerStatefulWidget {
@@ -254,6 +257,36 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
               : 'Privacidad: al usar la IA, el texto o la imagen del movimiento se envía a ${cfg.active.label}. '
                   'El resto de tus datos permanece en el dispositivo.',
           style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+
+        // ── Modo del asesor (persona que sesga toda la IA) ────────────────
+        DsCard(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Modo del asesor', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(
+                'Define el tono y las prioridades de TODA la IA: análisis, planes, sugerencias, '
+                'asistente y captura.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              const AiModeSelector(),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Entry point to the AI module hub ──────────────────────────────
+        DsListTile(
+          icon: Icons.widgets_rounded,
+          title: 'Módulos de IA',
+          subtitle: 'Análisis, planes, sugerencias, asistente y más',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('ai-hub'),
         ),
       ],
     );

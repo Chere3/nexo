@@ -11,6 +11,8 @@ import '../../../core/theme/theme_settings.dart';
 import '../../../core/ui/entity_palette.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
+import '../../ai/presentation/ai_suggestions_card.dart';
+import '../../ai/presentation/planning_screen.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
 import '../../transactions/domain/currency.dart';
@@ -80,13 +82,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onAccountChanged: (v) => setState(() => _accountFilter = v),
       ),
       _AnalyticsTab(entries: visibleEntries, ref: ref),
+      const PlanningScreen(embedded: true),
       const _SettingsTab(),
     ];
 
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_index == 0 ? l10n.appTitle : _index == 1 ? l10n.navAnalytics : l10n.navSettings),
+        title: Text(switch (_index) {
+          0 => l10n.appTitle,
+          1 => l10n.navAnalytics,
+          2 => 'Planning',
+          _ => l10n.navSettings,
+        }),
         actions: [
           if (_index == 0)
             IconButton(
@@ -128,6 +136,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         destinations: [
           NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: l10n.navHome),
           NavigationDestination(icon: const Icon(Icons.insights_outlined), selectedIcon: const Icon(Icons.insights_rounded), label: l10n.navAnalytics),
+          const NavigationDestination(icon: Icon(Icons.auto_graph_outlined), selectedIcon: Icon(Icons.auto_graph_rounded), label: 'Planning'),
           NavigationDestination(icon: const Icon(Icons.tune_outlined), selectedIcon: const Icon(Icons.tune_rounded), label: l10n.navSettings),
         ],
       ),
@@ -432,6 +441,7 @@ class _DashboardTab extends StatelessWidget {
         const SizedBox(height: 12),
       ],
       HomeModule.hub: const [HomeQuickActions(), SizedBox(height: 18)],
+      HomeModule.aiSuggestions: const [AiSuggestionsCard(embedded: true), SizedBox(height: 16)],
       HomeModule.budgetsSummary: const [HomeBudgetsModule(), SizedBox(height: 16)],
       HomeModule.goalsSummary: const [HomeGoalsModule(), SizedBox(height: 16)],
       HomeModule.accountsList: const [HomeAccountsModule(), SizedBox(height: 16)],

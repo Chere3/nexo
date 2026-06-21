@@ -15,7 +15,7 @@ class LocalStore {
   static late final Database db;
 
   /// Current target schema version. Increment when adding a migration.
-  static const int _schemaVersion = 4;
+  static const int _schemaVersion = 5;
 
   static Future<void> init() async {
     final dir = await getApplicationSupportDirectory();
@@ -117,6 +117,7 @@ class LocalStore {
       if (current < 2) _migrateTo2(db);
       if (current < 3) _migrateTo3(db);
       if (current < 4) _migrateTo4(db);
+      if (current < 5) _migrateTo5(db);
       db.execute('PRAGMA user_version = $_schemaVersion');
       db.execute('COMMIT');
     } catch (e, st) {
@@ -245,5 +246,21 @@ class LocalStore {
     if (!hasPaid) {
       db.execute('ALTER TABLE debts ADD COLUMN paid_amount REAL NOT NULL DEFAULT 0');
     }
+  }
+
+  /// v5 — AI-generated financial plans persisted by the Planning workspace.
+  /// `body` holds the plan JSON (steps, milestones, targets); `type` is the
+  /// [PlanType] name; `status` tracks active/archived plans.
+  static void _migrateTo5(Database db) {
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS ai_plans (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL
+      );
+    ''');
   }
 }

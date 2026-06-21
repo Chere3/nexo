@@ -2,7 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_screen.dart';
+import '../../features/ai/presentation/ai_assistant_screen.dart';
+import '../../features/ai/presentation/ai_hub_screen.dart';
 import '../../features/ai/presentation/ai_insights_screen.dart';
+import '../../features/ai/presentation/planning_screen.dart';
 import '../../features/analytics/presentation/reports_screen.dart';
 import '../../features/ai/presentation/ai_settings_screen.dart';
 import '../../features/budgets/presentation/budgets_screen.dart';
@@ -76,6 +79,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/ai-insights',
         name: 'ai-insights',
         builder: (context, state) => const AiInsightsScreen(),
+      ),
+      GoRoute(
+        path: '/planning',
+        name: 'planning',
+        builder: (context, state) => const PlanningScreen(),
+      ),
+      GoRoute(
+        path: '/ai-hub',
+        name: 'ai-hub',
+        builder: (context, state) => const AiHubScreen(),
+      ),
+      GoRoute(
+        path: '/ai-assistant',
+        name: 'ai-assistant',
+        builder: (context, state) => const AiAssistantScreen(),
       ),
       GoRoute(
         path: '/ai-settings',

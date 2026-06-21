@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ai/ai_config.dart';
-import '../../../core/ai/anthropic_client.dart';
+import '../../../core/ai/llm_client.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_feature_header.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
-import '../../budgets/domain/budget.dart';
-import '../../budgets/domain/budgets_provider.dart';
-import '../../transactions/domain/currency.dart';
-import '../../transactions/domain/transactions_provider.dart';
+import '../domain/ai_context.dart';
 import '../domain/ai_providers.dart';
 
 class AiInsightsScreen extends ConsumerStatefulWidget {
@@ -24,38 +21,6 @@ class _AiInsightsScreenState extends ConsumerState<AiInsightsScreen> {
   String? _error;
   List<String>? _insights;
 
-  String _buildSummary() {
-    final income = ref.read(totalIncomeProvider);
-    final expense = ref.read(totalExpenseProvider);
-    final byCat = ref.read(spentByCategoryProvider);
-    final progress = ref.read(budgetProgressProvider);
-    final now = DateTime.now();
-
-    final b = StringBuffer();
-    b.writeln('Resumen financiero (mes en curso, MXN):');
-    b.writeln('- Ingresos totales: ${formatMoney(income)}');
-    b.writeln('- Gastos totales: ${formatMoney(expense)}');
-    b.writeln('- Balance: ${formatMoney(income - expense)}');
-    if (byCat.isNotEmpty) {
-      final sorted = byCat.entries.toList()..sort((a, z) => z.value.compareTo(a.value));
-      b.writeln('Gasto por categoría este mes:');
-      for (final e in sorted.take(8)) {
-        b.writeln('- ${e.key}: ${formatMoney(e.value)}');
-      }
-    }
-    if (progress.isNotEmpty) {
-      b.writeln('Presupuestos:');
-      for (final p in progress) {
-        final status = p.isOverBudget
-            ? 'EXCEDIDO'
-            : (p.isAheadOfPace(now) ? 'sobre ritmo' : 'en ritmo');
-        b.writeln('- ${p.budget.name} (${p.budget.period.label}): '
-            '${formatMoney(p.spent)} de ${formatMoney(p.budget.amount)} [$status]');
-      }
-    }
-    return b.toString();
-  }
-
   Future<void> _generate() async {
     final svc = ref.read(aiServicesProvider);
     if (svc == null) return;
@@ -64,7 +29,7 @@ class _AiInsightsScreenState extends ConsumerState<AiInsightsScreen> {
       _error = null;
     });
     try {
-      final result = await svc.generateInsights(_buildSummary());
+      final result = await svc.generateInsights(ref.read(financialSnapshotProvider).toPromptText());
       setState(() => _insights = result);
     } on AiException catch (e) {
       setState(() => _error = e.message);

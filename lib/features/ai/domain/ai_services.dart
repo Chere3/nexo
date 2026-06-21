@@ -28,8 +28,14 @@ class ParsedTransaction {
 }
 
 class AiServices {
-  AiServices(this.client);
+  AiServices(this.client, {this.persona = ''});
   final LlmClient client;
+
+  /// Active coaching-mode persona, prepended to prompts that benefit from tone
+  /// (so Captura e Insights also speak in the user's chosen "Modo").
+  final String persona;
+
+  String _sys(String base) => persona.trim().isEmpty ? base : '$persona\n\n$base';
 
   static String _today() => DateTime.now().toIso8601String().split('T').first;
 
@@ -79,13 +85,13 @@ class AiServices {
     required List<String> accounts,
   }) async {
     final input = await client.extractStructured(
-      system:
+      system: _sys(
           'Eres un asistente de finanzas para usuarios en México. Conviertes texto en lenguaje natural '
           'en un movimiento financiero estructurado. La fecha de hoy es ${_today()}; resuelve fechas '
           'relativas como "ayer" o "el lunes" a una fecha ISO. La moneda por defecto es MXN. '
           'Elige category y account SOLO de estas listas cuando apliquen.\n'
           'Categorías: ${categories.join(", ")}\n'
-          'Cuentas: ${accounts.join(", ")}',
+          'Cuentas: ${accounts.join(", ")}'),
       userText: text,
       toolName: 'registrar_movimiento',
       toolDescription: 'Registra un movimiento financiero estructurado a partir del texto del usuario.',
@@ -151,10 +157,10 @@ class AiServices {
   /// Generates short, actionable spending insights from a textual summary.
   Future<List<String>> generateInsights(String summary) async {
     final input = await client.extractStructured(
-      system:
+      system: _sys(
           'Eres un coach financiero para usuarios en México. A partir del resumen de gastos, das de 2 a 4 '
           'observaciones breves, concretas y accionables en español, cada una de una frase. Sé directo y útil, '
-          'sin relleno. Usa cifras del resumen cuando ayuden.',
+          'sin relleno. Usa cifras del resumen cuando ayuden.'),
       userText: summary,
       toolName: 'dar_observaciones',
       toolDescription: 'Devuelve una lista de observaciones financieras breves.',

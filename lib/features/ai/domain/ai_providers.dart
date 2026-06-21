@@ -8,11 +8,13 @@ import '../../categories/domain/categories_provider.dart';
 import '../../categories/domain/category.dart';
 import '../../transactions/domain/currency.dart';
 import '../../transactions/domain/transaction.dart';
+import 'ai_mode.dart';
 import 'ai_services.dart';
 
 final aiServicesProvider = Provider<AiServices?>((ref) {
   final client = ref.watch(llmClientProvider);
-  return client == null ? null : AiServices(client);
+  if (client == null) return null;
+  return AiServices(client, persona: ref.watch(aiPersonaProvider));
 });
 
 /// Resolves a parsed AI draft into a persistable [FinanceEntry], matching

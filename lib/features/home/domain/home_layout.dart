@@ -9,6 +9,7 @@ enum HomeModule {
   debts,
   accounts,
   hub,
+  aiSuggestions,
   budgetsSummary,
   goalsSummary,
   accountsList,
@@ -29,6 +30,8 @@ extension HomeModuleX on HomeModule {
         return 'Cuentas y patrimonio';
       case HomeModule.hub:
         return 'Accesos rápidos';
+      case HomeModule.aiSuggestions:
+        return 'Sugerencias IA';
       case HomeModule.budgetsSummary:
         return 'Resumen de presupuestos';
       case HomeModule.goalsSummary:
@@ -56,6 +59,8 @@ extension HomeModuleX on HomeModule {
         return Icons.savings_outlined;
       case HomeModule.hub:
         return Icons.grid_view_rounded;
+      case HomeModule.aiSuggestions:
+        return Icons.lightbulb_rounded;
       case HomeModule.budgetsSummary:
         return Icons.account_balance_rounded;
       case HomeModule.goalsSummary:
