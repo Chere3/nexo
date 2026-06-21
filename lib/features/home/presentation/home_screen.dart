@@ -448,6 +448,7 @@ class _DashboardTab extends StatelessWidget {
             _HubTile(icon: Icons.account_balance_rounded, label: 'Presupuestos', onTap: () => context.pushNamed('budgets')),
             _HubTile(icon: Icons.savings_rounded, label: 'Metas', onTap: () => context.pushNamed('goals')),
             _HubTile(icon: Icons.category_rounded, label: 'Categorías', onTap: () => context.pushNamed('categories')),
+            _HubTile(icon: Icons.sell_rounded, label: 'Etiquetas', onTap: () => context.pushNamed('labels')),
             _HubTile(icon: Icons.tips_and_updates_rounded, label: 'Insights IA', onTap: () => context.pushNamed('ai-insights')),
             Consumer(
               builder: (context, ref, _) => _HubTile(

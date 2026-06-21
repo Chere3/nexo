@@ -16,6 +16,7 @@ import '../../accounts/domain/accounts_provider.dart';
 import '../../ai/domain/ai_providers.dart';
 import '../../categories/domain/categories_provider.dart';
 import '../../categories/domain/category.dart';
+import '../../labels/domain/labels_provider.dart';
 import '../domain/currency.dart';
 import '../domain/transaction.dart';
 import '../domain/transactions_provider.dart';
@@ -45,6 +46,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   late DateTime _date;
   bool _initialized = false;
   bool _suggesting = false;
+  final Set<String> _labelIds = {};
 
   @override
   void initState() {
@@ -62,6 +64,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _mode = initial.kind == EntryKind.transfer
           ? _Mode.transfer
           : (initial.type == EntryType.income ? _Mode.income : _Mode.expense);
+      _labelIds.addAll(ref.read(labelsProvider.notifier).labelIdsFor(initial.id));
     }
   }
 
@@ -208,6 +211,29 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   label: 'Nota (opcional)',
                   icon: Icons.notes_rounded,
                 ),
+                Builder(builder: (context) {
+                  final labels = ref.watch(labelsProvider);
+                  if (labels.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: labels.map((l) {
+                          final sel = _labelIds.contains(l.id);
+                          return FilterChip(
+                            avatar: CircleAvatar(backgroundColor: l.colorValue, radius: 8),
+                            label: Text(l.name),
+                            selected: sel,
+                            onSelected: (v) => setState(() => v ? _labelIds.add(l.id) : _labelIds.remove(l.id)),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  );
+                }),
                 const SizedBox(height: 20),
                 DsPrimaryButton(
                   onPressed: _submit,
@@ -312,6 +338,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     );
 
     ref.read(transactionsProvider.notifier).add(entry);
+    ref.read(labelsProvider.notifier).setForTransaction(entry.id, _labelIds.toList());
     context.pop();
   }
 }
