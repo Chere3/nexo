@@ -31,7 +31,7 @@ void main() {
 
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
       expect(version, 4);
-      db.dispose();
+      db.close();
     });
 
     test('is idempotent — applying twice does not throw or duplicate', () {
@@ -40,7 +40,7 @@ void main() {
       LocalStore.applySchema(db);
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
       expect(version, 4);
-      db.dispose();
+      db.close();
     });
 
     test('transactions has the enriched columns', () {
@@ -53,7 +53,7 @@ void main() {
       for (final c in ['account_id', 'category_id', 'kind', 'transfer_account_id', 'note', 'paid', 'exchange_rate']) {
         expect(cols.contains(c), isTrue, reason: 'missing column $c');
       }
-      db.dispose();
+      db.close();
     });
 
     test('upgrades a legacy v1 database in place', () {
@@ -77,7 +77,7 @@ void main() {
       expect(row['kind'], 'standard');
       expect((row['paid'] as num).toInt(), 1);
       expect(db.select('PRAGMA user_version').first['user_version'], 4);
-      db.dispose();
+      db.close();
     });
   });
 }

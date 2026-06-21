@@ -6,6 +6,7 @@ plugins {
 }
 
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
@@ -22,10 +23,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -63,6 +60,12 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
     }
 }
 
