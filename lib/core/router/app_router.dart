@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/presentation/accounts_screen.dart';
+import '../../features/ai/presentation/ai_insights_screen.dart';
+import '../../features/ai/presentation/ai_settings_screen.dart';
 import '../../features/budgets/presentation/budgets_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
@@ -63,6 +65,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/goals',
         name: 'goals',
         builder: (context, state) => const GoalsScreen(),
+      ),
+      GoRoute(
+        path: '/ai-insights',
+        name: 'ai-insights',
+        builder: (context, state) => const AiInsightsScreen(),
+      ),
+      GoRoute(
+        path: '/ai-settings',
+        name: 'ai-settings',
+        builder: (context, state) => const AiSettingsScreen(),
       ),
     ],
   );

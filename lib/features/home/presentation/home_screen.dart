@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
 import '../../transactions/domain/currency.dart';
@@ -78,6 +79,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: Text(_index == 0 ? 'Nexo' : _index == 1 ? 'Analytics' : 'Settings'),
         actions: [
+          IconButton(
+            tooltip: 'Captura con IA',
+            onPressed: () => showAiCaptureSheet(context, ref),
+            icon: const Icon(Icons.auto_awesome_rounded),
+          ),
           IconButton(
             tooltip: 'Notificaciones',
             onPressed: () {},
@@ -438,6 +444,14 @@ class _DashboardTab extends StatelessWidget {
             _HubTile(icon: Icons.account_balance_rounded, label: 'Presupuestos', onTap: () => context.pushNamed('budgets')),
             _HubTile(icon: Icons.savings_rounded, label: 'Metas', onTap: () => context.pushNamed('goals')),
             _HubTile(icon: Icons.category_rounded, label: 'Categorías', onTap: () => context.pushNamed('categories')),
+            _HubTile(icon: Icons.tips_and_updates_rounded, label: 'Insights IA', onTap: () => context.pushNamed('ai-insights')),
+            Consumer(
+              builder: (context, ref, _) => _HubTile(
+                icon: Icons.auto_awesome_rounded,
+                label: 'Captura IA',
+                onTap: () => showAiCaptureSheet(context, ref),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 18),
@@ -1241,6 +1255,13 @@ class _SettingsTab extends ConsumerWidget {
       children: [
         const DsListTile(icon: Icons.payments_outlined, title: 'Moneda', subtitle: 'MXN'),
         const DsListTile(icon: Icons.dark_mode_outlined, title: 'Tema', subtitle: 'Oscuro (Expressive)'),
+        DsListTile(
+          icon: Icons.auto_awesome_rounded,
+          title: 'Inteligencia artificial',
+          subtitle: 'API key, modelo, captura por IA',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('ai-settings'),
+        ),
         const DsListTile(icon: Icons.file_download_outlined, title: 'Exportar CSV', subtitle: 'Próximamente'),
         DsListTile(
           icon: Icons.science_outlined,
