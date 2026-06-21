@@ -44,4 +44,12 @@ void main() {
     expect(currencySymbol('EUR'), '€');
     expect(currencySymbol('MXN'), r'$');
   });
+
+  group('roundMoney', () {
+    test('rounds to two decimals', () {
+      expect(roundMoney(10.005), 10.01);
+      expect(roundMoney(10.004), 10.0);
+      expect(roundMoney(0.1 + 0.2), 0.3);
+    });
+  });
 }

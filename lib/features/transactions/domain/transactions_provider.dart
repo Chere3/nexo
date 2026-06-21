@@ -68,7 +68,7 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
       [
         entry.id,
         entry.title,
-        entry.amount,
+        roundMoney(entry.amount),
         entry.category,
         entry.date.toIso8601String(),
         entry.type == EntryType.income ? 'income' : 'expense',

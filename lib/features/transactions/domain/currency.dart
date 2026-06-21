@@ -19,6 +19,10 @@ double effectiveMxnRate(String currency) {
   return liveMxnPerCurrency[currency] ?? mxnPerCurrency[currency] ?? 1.0;
 }
 
+/// Rounds a monetary value to 2 decimals (banker-free, half-up). Applied at
+/// write time so stored amounts don't accumulate binary floating-point drift.
+double roundMoney(double value) => (value * 100).round() / 100;
+
 const _symbols = {
   'MXN': r'$',
   'USD': r'US$',
