@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/security/app_lock.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
 import '../../transactions/domain/category_limits_provider.dart';
@@ -1267,6 +1268,20 @@ class _SettingsTab extends ConsumerWidget {
           subtitle: 'API key, modelo, captura por IA',
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('ai-settings'),
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.lock_outline_rounded),
+          title: const Text('Bloqueo con biometría'),
+          subtitle: const Text('Pide huella/rostro o PIN al abrir Nexo'),
+          value: ref.watch(appLockProvider).enabled,
+          onChanged: (v) async {
+            final ok = await ref.read(appLockProvider.notifier).setEnabled(v);
+            if (!ok && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No se pudo configurar el bloqueo (autenticación fallida).')),
+              );
+            }
+          },
         ),
         DsListTile(
           icon: Icons.import_export_rounded,

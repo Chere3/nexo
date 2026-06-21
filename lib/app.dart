@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
+import 'core/security/app_lock_gate.dart';
 import 'core/theme/app_theme.dart';
 
 class NexoApp extends ConsumerWidget {
@@ -21,6 +22,7 @@ class NexoApp extends ConsumerWidget {
           darkTheme: AppTheme.dark(dynamicScheme: darkDynamic),
           themeMode: ThemeMode.system,
           routerConfig: router,
+          builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
         );
       },
     );
