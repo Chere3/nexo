@@ -131,7 +131,8 @@ class AiProviderProfile {
         'isLocal': isLocal,
       };
 
-  factory AiProviderProfile.fromJson(Map<String, dynamic> j) => AiProviderProfile(
+  factory AiProviderProfile.fromJson(Map<String, dynamic> j) =>
+      AiProviderProfile(
         id: (j['id'] ?? '').toString(),
         kind: _kindFromName(j['kind'] as String?),
         label: (j['label'] ?? '').toString(),
@@ -151,7 +152,11 @@ const List<AiProviderPreset> kAiProviderPresets = [
     kind: AiProviderKind.anthropic,
     label: 'Anthropic (Claude)',
     defaultModel: 'claude-haiku-4-5',
-    modelSuggestions: ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-opus-4-8'],
+    modelSuggestions: [
+      'claude-haiku-4-5',
+      'claude-sonnet-4-6',
+      'claude-opus-4-8'
+    ],
     keysUrl: 'https://console.anthropic.com/settings/keys',
   ),
   AiProviderPreset(
@@ -169,8 +174,13 @@ const List<AiProviderPreset> kAiProviderPresets = [
     label: 'Google Gemini / Gemma',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: 'gemini-2.0-flash',
-    modelSuggestions: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemma-3-27b-it'],
-    note: 'Endpoint compatible con OpenAI de Google. Incluye modelos Gemma en la nube.',
+    modelSuggestions: [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemma-3-27b-it'
+    ],
+    note:
+        'Endpoint compatible con OpenAI de Google. Incluye modelos Gemma en la nube.',
     keysUrl: 'https://aistudio.google.com/apikey',
   ),
   AiProviderPreset(
@@ -188,7 +198,11 @@ const List<AiProviderPreset> kAiProviderPresets = [
     label: 'OpenRouter',
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
     defaultModel: 'openai/gpt-4o-mini',
-    modelSuggestions: ['openai/gpt-4o-mini', 'google/gemma-3-27b-it', 'anthropic/claude-3.5-haiku'],
+    modelSuggestions: [
+      'openai/gpt-4o-mini',
+      'google/gemma-3-27b-it',
+      'anthropic/claude-3.5-haiku'
+    ],
     note: 'Un solo key, cientos de modelos de muchos proveedores.',
     keysUrl: 'https://openrouter.ai/keys',
   ),
@@ -207,7 +221,11 @@ const List<AiProviderPreset> kAiProviderPresets = [
     label: 'Mistral',
     defaultBaseUrl: 'https://api.mistral.ai/v1',
     defaultModel: 'mistral-small-latest',
-    modelSuggestions: ['mistral-small-latest', 'mistral-large-latest', 'pixtral-12b-latest'],
+    modelSuggestions: [
+      'mistral-small-latest',
+      'mistral-large-latest',
+      'pixtral-12b-latest'
+    ],
     keysUrl: 'https://console.mistral.ai/api-keys',
   ),
   AiProviderPreset(
@@ -225,7 +243,10 @@ const List<AiProviderPreset> kAiProviderPresets = [
     label: 'Together AI',
     defaultBaseUrl: 'https://api.together.xyz/v1',
     defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-    modelSuggestions: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'google/gemma-2-27b-it'],
+    modelSuggestions: [
+      'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      'google/gemma-2-27b-it'
+    ],
     keysUrl: 'https://api.together.ai/settings/api-keys',
   ),
   AiProviderPreset(
@@ -238,7 +259,8 @@ const List<AiProviderPreset> kAiProviderPresets = [
     requiresKey: false,
     baseUrlEditable: true,
     isLocal: true,
-    note: 'IA local en tu equipo. Emulador Android: usa http://10.0.2.2:11434/v1. '
+    note:
+        'IA local en tu equipo. Emulador Android: usa http://10.0.2.2:11434/v1. '
         'Teléfono físico (misma Wi-Fi): la IP de tu PC, p. ej. http://192.168.1.10:11434/v1. '
         'Arranca Ollama accesible con OLLAMA_HOST=0.0.0.0.',
   ),
@@ -251,8 +273,31 @@ const List<AiProviderPreset> kAiProviderPresets = [
     requiresKey: false,
     baseUrlEditable: true,
     isLocal: true,
-    note: 'Servidor local de LM Studio. Emulador Android: http://10.0.2.2:1234/v1. '
+    note:
+        'Servidor local de LM Studio. Emulador Android: http://10.0.2.2:1234/v1. '
         'Teléfono físico (misma Wi-Fi): la IP de tu PC. Activa "Serve on local network" en LM Studio.',
+  ),
+  AiProviderPreset(
+    id: 'cli_bridge',
+    kind: AiProviderKind.openai,
+    label: 'Claude Code / Codex (bridge local)',
+    defaultBaseUrl: 'http://127.0.0.1:8787/v1',
+    defaultModel: 'claude-opus-4-8',
+    modelSuggestions: [
+      'claude-opus-4-8',
+      'claude-sonnet-4-6',
+      'gpt-5-codex',
+      'gpt-5',
+      'o4-mini'
+    ],
+    requiresKey: false,
+    baseUrlEditable: true,
+    isLocal: true,
+    note:
+        'Usa tus SUSCRIPCIONES de Claude Code y Codex vía un bridge local en Termux '
+        '(ver tools/nexo-ai-bridge). El modelo decide el backend: claude-* → Claude Code; '
+        'gpt-*/o*/codex → Codex. Uso personal: consume tu cupo de la suscripción y no '
+        'comparte credenciales. Pon un BRIDGE_TOKEN y úsalo como API key para más seguridad.',
   ),
   AiProviderPreset(
     id: 'gemma_device',
@@ -261,7 +306,8 @@ const List<AiProviderPreset> kAiProviderPresets = [
     defaultModel: '',
     requiresKey: false,
     isLocal: true,
-    note: 'Descarga un modelo Gemma 4 y córrelo DENTRO del teléfono, sin internet y '
+    note:
+        'Descarga un modelo Gemma 4 y córrelo DENTRO del teléfono, sin internet y '
         'SIN token. La descarga es grande (2–4 GB), única vez. Gestiona la descarga abajo.',
   ),
   AiProviderPreset(
@@ -272,9 +318,10 @@ const List<AiProviderPreset> kAiProviderPresets = [
     defaultModel: '',
     requiresKey: false,
     baseUrlEditable: true,
-    note: 'Cualquier endpoint compatible con OpenAI: pega la URL base (con /v1) y el modelo.',
+    note:
+        'Cualquier endpoint compatible con OpenAI: pega la URL base (con /v1) y el modelo.',
   ),
 ];
 
-AiProviderPreset presetById(String id) =>
-    kAiProviderPresets.firstWhere((p) => p.id == id, orElse: () => kAiProviderPresets.first);
+AiProviderPreset presetById(String id) => kAiProviderPresets
+    .firstWhere((p) => p.id == id, orElse: () => kAiProviderPresets.first);

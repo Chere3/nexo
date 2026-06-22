@@ -9,6 +9,7 @@ import '../../../design_system/components/ds_feature_header.dart';
 import '../../../design_system/components/ds_list_tile.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
 import 'ai_mode_selector.dart';
+import 'cli_bridge_section.dart';
 import 'on_device_section.dart';
 
 class AiSettingsScreen extends ConsumerStatefulWidget {
@@ -72,10 +73,13 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       // run — otherwise we'd silently disable a working setup.
       notifier.selectProvider(_selectedId);
       notifier.setEnabled(true);
-      messenger.showSnackBar(SnackBar(content: Text('${preset.label} guardado y activado')));
+      messenger.showSnackBar(
+          SnackBar(content: Text('${preset.label} guardado y activado')));
     } else {
       messenger.showSnackBar(
-        SnackBar(content: Text('${preset.label} guardado. Completa los campos requeridos para activarlo.')),
+        SnackBar(
+            content: Text(
+                '${preset.label} guardado. Completa los campos requeridos para activarlo.')),
       );
     }
   }
@@ -92,7 +96,8 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       children: [
         const DsFeatureHeader(
           title: 'IA en Nexo',
-          subtitle: 'Captura por lenguaje natural, escaneo de recibos, autocategorización e insights.',
+          subtitle:
+              'Captura por lenguaje natural, escaneo de recibos, autocategorización e insights.',
           icon: Icons.auto_awesome_rounded,
         ),
         const SizedBox(height: 12),
@@ -103,7 +108,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Proveedor', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              Text('Proveedor',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(
                 'Elige Anthropic, cualquier API compatible con OpenAI, o una IA local (Ollama / LM Studio).',
@@ -128,10 +135,13 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                             size: 18,
                           ),
                           const SizedBox(width: 8),
-                          Flexible(child: Text(p.label, overflow: TextOverflow.ellipsis)),
+                          Flexible(
+                              child: Text(p.label,
+                                  overflow: TextOverflow.ellipsis)),
                           if (cfg.profile(p.id).isConfigured) ...[
                             const SizedBox(width: 6),
-                            Icon(Icons.check_circle, size: 14, color: theme.colorScheme.primary),
+                            Icon(Icons.check_circle,
+                                size: 14, color: theme.colorScheme.primary),
                           ],
                         ],
                       ),
@@ -141,7 +151,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
               ),
               if (preset.note != null) ...[
                 const SizedBox(height: 8),
-                Text(preset.note!, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                Text(preset.note!,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor)),
               ],
             ],
           ),
@@ -151,91 +163,105 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
         // ── Credentials & model (or on-device download manager) ───────────
         if (preset.kind == AiProviderKind.onDevice)
           OnDeviceSection(profileId: _selectedId)
-        else
+        else ...[
           DsCard(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Base URL: editable for local/custom, informational for fixed cloud.
-              if (preset.kind == AiProviderKind.openai) ...[
-                if (preset.baseUrlEditable)
-                  TextField(
-                    controller: _baseUrl,
-                    keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(
-                      labelText: 'URL base (con /v1)',
-                      hintText: 'http://localhost:11434/v1',
-                    ),
-                  )
-                else
-                  _InfoRow(label: 'Endpoint', value: preset.defaultBaseUrl),
-                const SizedBox(height: 12),
-              ],
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Base URL: editable for local/custom, informational for fixed cloud.
+                if (preset.kind == AiProviderKind.openai) ...[
+                  if (preset.baseUrlEditable)
+                    TextField(
+                      controller: _baseUrl,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'URL base (con /v1)',
+                        hintText: 'http://localhost:11434/v1',
+                      ),
+                    )
+                  else
+                    _InfoRow(label: 'Endpoint', value: preset.defaultBaseUrl),
+                  const SizedBox(height: 12),
+                ],
 
-              // API key.
-              TextField(
-                controller: _key,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  labelText: preset.requiresKey ? 'API key' : 'API key (opcional)',
-                  hintText: preset.kind == AiProviderKind.anthropic ? 'sk-ant-...' : 'sk-...',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                // API key.
+                TextField(
+                  controller: _key,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                    labelText:
+                        preset.requiresKey ? 'API key' : 'API key (opcional)',
+                    hintText: preset.kind == AiProviderKind.anthropic
+                        ? 'sk-ant-...'
+                        : 'sk-...',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscure
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
                   ),
                 ),
-              ),
-              if (preset.keysUrl != null) ...[
-                const SizedBox(height: 6),
-                SelectableText(
-                  'Consigue tu key en: ${preset.keysUrl}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                ),
-              ],
-              const SizedBox(height: 12),
+                if (preset.keysUrl != null) ...[
+                  const SizedBox(height: 6),
+                  SelectableText(
+                    'Consigue tu key en: ${preset.keysUrl}',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+                const SizedBox(height: 12),
 
-              // Model.
-              TextField(
-                controller: _model,
-                decoration: const InputDecoration(
-                  labelText: 'Modelo',
-                  hintText: 'p. ej. gpt-4o-mini, gemma3, claude-haiku-4-5',
+                // Model.
+                TextField(
+                  controller: _model,
+                  decoration: const InputDecoration(
+                    labelText: 'Modelo',
+                    hintText: 'p. ej. gpt-4o-mini, gemma3, claude-haiku-4-5',
+                  ),
                 ),
-              ),
-              if (preset.modelSuggestions.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
+                if (preset.modelSuggestions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final m in preset.modelSuggestions)
+                        ActionChip(
+                          label: Text(m, style: theme.textTheme.bodySmall),
+                          onPressed: () => setState(() => _model.text = m),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    for (final m in preset.modelSuggestions)
-                      ActionChip(
-                        label: Text(m, style: theme.textTheme.bodySmall),
-                        onPressed: () => setState(() => _model.text = m),
+                    if (isActive)
+                      Chip(
+                        avatar: const Icon(Icons.bolt_rounded, size: 16),
+                        label: const Text('Activo'),
+                        visualDensity: VisualDensity.compact,
                       ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () => _save(preset),
+                      child: const Text('Guardar y usar'),
+                    ),
                   ],
                 ),
               ],
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  if (isActive)
-                    Chip(
-                      avatar: const Icon(Icons.bolt_rounded, size: 16),
-                      label: const Text('Activo'),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  const Spacer(),
-                  FilledButton(
-                    onPressed: () => _save(preset),
-                    child: const Text('Guardar y usar'),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+          if (preset.id == 'cli_bridge') ...[
+            const SizedBox(height: 12),
+            CliBridgeSection(
+              baseUrlController: _baseUrl,
+              tokenController: _key,
+            ),
+          ],
+        ],
         const SizedBox(height: 12),
 
         // ── Master switch ─────────────────────────────────────────────────
@@ -247,7 +273,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                 : 'Configura y guarda un proveedor para activarla',
           ),
           value: cfg.enabled,
-          onChanged: cfg.active.isConfigured ? (v) => ref.read(aiConfigProvider.notifier).setEnabled(v) : null,
+          onChanged: cfg.active.isConfigured
+              ? (v) => ref.read(aiConfigProvider.notifier).setEnabled(v)
+              : null,
         ),
         const SizedBox(height: 8),
         Text(
@@ -266,7 +294,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Modo del asesor', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+              Text('Modo del asesor',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(
                 'Define el tono y las prioridades de TODA la IA: análisis, planes, sugerencias, '
@@ -304,7 +334,9 @@ class _InfoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor)),
+        Text(label,
+            style:
+                theme.textTheme.labelSmall?.copyWith(color: theme.hintColor)),
         const SizedBox(height: 2),
         SelectableText(value, style: theme.textTheme.bodyMedium),
       ],
