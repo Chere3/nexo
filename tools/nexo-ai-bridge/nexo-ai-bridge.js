@@ -350,9 +350,14 @@ function loginHint(bin, detail) {
 // ---------------------------------------------------------------------------
 async function handleChat(body) {
   const model = (body.model || '').trim() || (DEFAULT_BACKEND === 'claude' ? 'claude-opus-4-8' : 'gpt-5-codex');
-  const backend = backendFor(model);
 
   const flat = flatten(body.messages);
+
+  // Claude Code headless NO acepta imágenes. Un request con imágenes (recibos)
+  // se rutea SIEMPRE a Codex, que soporta `-i`. Si Codex no está logueado/falla,
+  // el bridge devuelve error y Nexo cae a Gemma on-device.
+  let backend = backendFor(model);
+  if (flat.images.length > 0) backend = 'codex';
 
   // ¿structured output? Nexo manda tools:[{type:function, function:{...}}].
   let structuredTool = null;
