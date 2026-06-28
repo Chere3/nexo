@@ -6,11 +6,15 @@ import 'package:intl/intl.dart';
 
 import '../../../core/fx/fx_service.dart';
 import '../../../core/i18n/language_settings.dart';
+import '../../../core/platform/notification_access.dart';
 import '../../../core/security/app_lock.dart';
 import '../../../core/theme/theme_settings.dart';
 import '../../../core/ui/entity_palette.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../ai/presentation/ai_capture_sheet.dart';
+import '../../capture/domain/capture_controller.dart';
+import '../../capture/domain/merchant_memory.dart';
+import '../../documents/presentation/documents_screen.dart';
 import '../../ai/presentation/ai_suggestions_card.dart';
 import '../../ai/presentation/planning_screen.dart';
 import '../../analytics/domain/analytics_range_provider.dart';
@@ -21,6 +25,7 @@ import '../../transactions/domain/recurring_transaction.dart';
 import '../../transactions/domain/recurring_transactions_provider.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../../transactions/presentation/quick_add_sheet.dart';
 import '../domain/home_layout.dart';
 import 'home_modules.dart';
 import '../../../../design_system/components/ds_card.dart';
@@ -43,6 +48,23 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
   String _accountFilter = 'Todas';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Seed the merchant→category memory from existing categorized movements
+      // once, so captures auto-file from day one (cheap, runs on all platforms).
+      ref.read(merchantMemoryProvider).maybeSeed();
+      // On launch, drain AutoCapture: this syncs native flags and materializes
+      // movements the user confirmed/dismissed from the notification while away.
+      // Deterministic only (maxAiItems: 0) so launch stays fast.
+      if (NotificationAccess.isSupported) {
+        ref.read(captureSettingsProvider); // triggers native flag sync
+        ref.read(captureInboxProvider.notifier).drainAndProcess(maxAiItems: 0);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       _AnalyticsTab(entries: visibleEntries, ref: ref),
       const PlanningScreen(embedded: true),
+      const DocumentsScreen(embedded: true),
       const _SettingsTab(),
     ];
 
@@ -93,6 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           0 => l10n.appTitle,
           1 => l10n.navAnalytics,
           2 => 'Planning',
+          3 => 'Documentos',
           _ => l10n.navSettings,
         }),
         actions: [
@@ -125,7 +149,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       floatingActionButton: _index == 0
           ? FloatingActionButton.extended(
-              onPressed: _openQuickAdd,
+              onPressed: _quickAdd,
               icon: const Icon(Icons.add_rounded),
               label: const Text('Quick add'),
             )
@@ -137,253 +161,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home_rounded), label: l10n.navHome),
           NavigationDestination(icon: const Icon(Icons.insights_outlined), selectedIcon: const Icon(Icons.insights_rounded), label: l10n.navAnalytics),
           const NavigationDestination(icon: Icon(Icons.auto_graph_outlined), selectedIcon: Icon(Icons.auto_graph_rounded), label: 'Planning'),
+          const NavigationDestination(icon: Icon(Icons.description_outlined), selectedIcon: Icon(Icons.description_rounded), label: 'Docs'),
           NavigationDestination(icon: const Icon(Icons.tune_outlined), selectedIcon: const Icon(Icons.tune_rounded), label: l10n.navSettings),
         ],
       ),
     );
   }
 
-  Future<void> _openQuickAdd() async {
-    final amountCtrl = TextEditingController();
-    final titleCtrl = TextEditingController();
-
-    EntryType type = EntryType.expense;
-    String category = 'Comida';
-    String account = 'Efectivo';
-    String currency = 'MXN';
-
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                8,
-                16,
-                MediaQuery.viewInsetsOf(context).bottom + 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Quick add', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 4),
-                  Text('Registra un movimiento en 10 segundos.'),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickTypePill(
-                          label: 'Gasto',
-                          icon: Icons.arrow_upward_rounded,
-                          selected: type == EntryType.expense,
-                          onTap: () => setModalState(() => type = EntryType.expense),
-                          selectedBg: Theme.of(context).colorScheme.errorContainer,
-                          selectedFg: Theme.of(context).colorScheme.onErrorContainer,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _QuickTypePill(
-                          label: 'Ingreso',
-                          icon: Icons.arrow_downward_rounded,
-                          selected: type == EntryType.income,
-                          onTap: () => setModalState(() => type = EntryType.income),
-                          selectedBg: Theme.of(context).colorScheme.primaryContainer,
-                          selectedFg: Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: amountCtrl,
-                    autofocus: true,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Monto',
-                      prefixIcon: Icon(Icons.attach_money_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Concepto (opcional)',
-                      prefixIcon: Icon(Icons.edit_note_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _quickCategories
-                        .map(
-                          (c) => ChoiceChip(
-                            label: Text(c),
-                            selected: c == category,
-                            onSelected: (_) => setModalState(() => category = c),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: account,
-                    items: const ['Efectivo', 'Débito', 'Crédito', 'Ahorros']
-                        .map((a) => DropdownMenuItem(value: a, child: Text(a)))
-                        .toList(),
-                    onChanged: (v) => setModalState(() => account = v ?? 'Efectivo'),
-                    decoration: const InputDecoration(
-                      labelText: 'Cuenta',
-                      prefixIcon: Icon(Icons.account_balance_wallet_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: currency,
-                    items: supportedCurrencies
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) => setModalState(() => currency = v ?? 'MXN'),
-                    decoration: const InputDecoration(
-                      labelText: 'Moneda',
-                      prefixIcon: Icon(Icons.currency_exchange_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        final amount = _parseAmountInput(amountCtrl.text);
-                        if (amount == null || amount <= 0) {
-                          ScaffoldMessenger.of(sheetContext).showSnackBar(
-                            const SnackBar(content: Text('Ingresa un monto válido para guardar rápido')),
-                          );
-                          return;
-                        }
-
-                        if (_accountFilter != 'Todas' && _accountFilter != account) {
-                          setState(() => _accountFilter = account);
-                        }
-
-                        ref.read(transactionsProvider.notifier).add(
-                              FinanceEntry(
-                                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                title: titleCtrl.text.trim().isEmpty ? category : titleCtrl.text.trim(),
-                                amount: amount,
-                                category: category,
-                                date: DateTime.now(),
-                                type: type,
-                                account: account,
-                                currency: currency,
-                              ),
-                            );
-
-                        Navigator.pop(sheetContext, true);
-                      },
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Guardar rápido'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (!mounted) return;
-    if (saved == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Movimiento guardado')),
-      );
+  Future<void> _quickAdd() async {
+    final saved = await showQuickAddSheet(context, ref, accountFilter: _accountFilter);
+    if (!mounted || saved == null) return;
+    if (_accountFilter != 'Todas' && _accountFilter != saved.account) {
+      setState(() => _accountFilter = saved.account);
     }
-  }
-
-  double? _parseAmountInput(String input) {
-    final raw = input.trim().replaceAll(' ', '');
-    if (raw.isEmpty) return null;
-
-    if (raw.contains(',') && raw.contains('.')) {
-      return double.tryParse(raw.replaceAll(',', ''));
-    }
-
-    if (raw.contains(',')) {
-      return double.tryParse(raw.replaceAll(',', '.'));
-    }
-
-    return double.tryParse(raw);
-  }
-}
-
-class _QuickTypePill extends StatelessWidget {
-  const _QuickTypePill({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-    required this.selectedBg,
-    required this.selectedFg,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-  final Color selectedBg;
-  final Color selectedFg;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: 'Tipo de movimiento: $label',
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        height: 52,
-        decoration: BoxDecoration(
-          color: selected ? selectedBg : scheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: selected ? Colors.transparent : scheme.outlineVariant),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: onTap,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 18, color: selected ? selectedFg : scheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: selected ? selectedFg : scheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Movimiento guardado')),
     );
   }
 }
-
-const _quickCategories = ['Comida', 'Transporte', 'Casa', 'Salud', 'Ocio', 'Ingresos'];
 
 class _DashboardTab extends StatelessWidget {
   const _DashboardTab({
@@ -1327,6 +1122,13 @@ class _SettingsTab extends ConsumerWidget {
           subtitle: 'API key, modelo, captura por IA',
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => context.pushNamed('ai-settings'),
+        ),
+        DsListTile(
+          icon: Icons.tune_rounded,
+          title: 'Captura y layout',
+          subtitle: 'Quick Add, Batch Add, modo IA y plantillas',
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.pushNamed('capture-layout'),
         ),
         Builder(builder: (context) {
           final locale = ref.watch(languageProvider);

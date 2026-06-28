@@ -9,8 +9,11 @@ import '../../features/ai/presentation/planning_screen.dart';
 import '../../features/analytics/presentation/reports_screen.dart';
 import '../../features/ai/presentation/ai_settings_screen.dart';
 import '../../features/budgets/presentation/budgets_screen.dart';
+import '../../features/capture/presentation/auto_capture_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/data/presentation/data_screen.dart';
+import '../../features/documents/presentation/document_detail_screen.dart';
+import '../../features/documents/presentation/documents_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/home/presentation/home_customize_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
@@ -18,6 +21,8 @@ import '../../features/labels/presentation/labels_screen.dart';
 import '../../features/notifications/presentation/reminders_screen.dart';
 import '../../features/transactions/domain/transaction.dart';
 import '../../features/transactions/presentation/add_transaction_screen.dart';
+import '../../features/transactions/presentation/batch_add_screen.dart';
+import '../../features/transactions/presentation/capture_layout_screen.dart';
 import '../../features/transactions/presentation/category_limits_screen.dart';
 import '../../features/transactions/presentation/debts_screen.dart';
 import '../../features/transactions/presentation/recurring_transactions_screen.dart';
@@ -101,6 +106,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AiSettingsScreen(),
       ),
       GoRoute(
+        path: '/auto-capture',
+        name: 'auto-capture',
+        builder: (context, state) => const AutoCaptureScreen(),
+      ),
+      GoRoute(
         path: '/data',
         name: 'data',
         builder: (context, state) => const DataScreen(),
@@ -129,6 +139,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/reports',
         name: 'reports',
         builder: (context, state) => const ReportsScreen(),
+      ),
+      GoRoute(
+        path: '/documents',
+        name: 'documents',
+        builder: (context, state) => const DocumentsScreen(),
+      ),
+      GoRoute(
+        path: '/document-detail',
+        name: 'document-detail',
+        builder: (context, state) => DocumentDetailScreen(documentId: state.extra as String),
+      ),
+      GoRoute(
+        path: '/capture-layout',
+        name: 'capture-layout',
+        builder: (context, state) => const CaptureLayoutScreen(),
+      ),
+      GoRoute(
+        path: '/batch-add',
+        name: 'batch-add',
+        builder: (context, state) => const BatchAddScreen(),
       ),
     ],
   );

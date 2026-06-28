@@ -17,17 +17,18 @@ final aiServicesProvider = Provider<AiServices?>((ref) {
   return AiServices(client, persona: ref.watch(aiPersonaProvider));
 });
 
-/// Resolves a parsed AI draft into a persistable [FinanceEntry], matching
-/// category/account names against the user's catalog (case-insensitive) and
-/// stamping the currency conversion rate at entry time.
-FinanceEntry entryFromParsed(
-  ParsedTransaction p, {
+/// Matches category/account NAMES against the user's catalog
+/// (case-insensitive). Returns the matched objects, or null when no match.
+/// Shared by [entryFromParsed] and the documents extraction pipeline.
+({Category? category, Account? account}) resolveCatalog(
+  String? categoryName,
+  String? accountName, {
   required List<Category> categories,
   required List<Account> accounts,
 }) {
   Category? cat;
-  if (p.categoryName != null) {
-    final target = p.categoryName!.toLowerCase();
+  if (categoryName != null) {
+    final target = categoryName.toLowerCase();
     for (final c in categories) {
       if (c.name.toLowerCase() == target) {
         cat = c;
@@ -36,8 +37,8 @@ FinanceEntry entryFromParsed(
     }
   }
   Account? acc;
-  if (p.accountName != null) {
-    final target = p.accountName!.toLowerCase();
+  if (accountName != null) {
+    final target = accountName.toLowerCase();
     for (final a in accounts) {
       if (a.name.toLowerCase() == target) {
         acc = a;
@@ -45,6 +46,25 @@ FinanceEntry entryFromParsed(
       }
     }
   }
+  return (category: cat, account: acc);
+}
+
+/// Resolves a parsed AI draft into a persistable [FinanceEntry], matching
+/// category/account names against the user's catalog (case-insensitive) and
+/// stamping the currency conversion rate at entry time.
+FinanceEntry entryFromParsed(
+  ParsedTransaction p, {
+  required List<Category> categories,
+  required List<Account> accounts,
+}) {
+  final resolved = resolveCatalog(
+    p.categoryName,
+    p.accountName,
+    categories: categories,
+    accounts: accounts,
+  );
+  final cat = resolved.category;
+  final acc = resolved.account;
 
   return FinanceEntry(
     id: newId('tx'),

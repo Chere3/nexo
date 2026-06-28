@@ -15,7 +15,7 @@ class LocalStore {
   static late final Database db;
 
   /// Current target schema version. Increment when adding a migration.
-  static const int _schemaVersion = 5;
+  static const int _schemaVersion = 8;
 
   static Future<void> init() async {
     final dir = await getApplicationSupportDirectory();
@@ -118,6 +118,9 @@ class LocalStore {
       if (current < 3) _migrateTo3(db);
       if (current < 4) _migrateTo4(db);
       if (current < 5) _migrateTo5(db);
+      if (current < 6) _migrateTo6(db);
+      if (current < 7) _migrateTo7(db);
+      if (current < 8) _migrateTo8(db);
       db.execute('PRAGMA user_version = $_schemaVersion');
       db.execute('COMMIT');
     } catch (e, st) {
@@ -262,5 +265,112 @@ class LocalStore {
         created_at TEXT NOT NULL
       );
     ''');
+  }
+
+  /// v6 — AutoCapture inbox. Bank/fintech notifications captured by the native
+  /// NotificationListenerService land here as an audit trail and a review queue:
+  /// the deterministic parser fills entity/amount/direction; the AI suggests a
+  /// category. `status` tracks pending → confirmed/dismissed. `transaction_id`
+  /// links the movement created when the user confirms a captured row.
+  static void _migrateTo6(Database db) {
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS captured_notifications (
+        id TEXT PRIMARY KEY,
+        package TEXT NOT NULL,
+        entity TEXT,
+        entity_type TEXT,
+        title TEXT,
+        text TEXT,
+        posted_at TEXT NOT NULL,
+        captured_at TEXT NOT NULL,
+        amount REAL,
+        direction TEXT,
+        card_last4 TEXT,
+        suggested_category TEXT,
+        confidence REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        transaction_id TEXT
+      );
+    ''');
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_captured_status ON captured_notifications(status)');
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_captured_posted ON captured_notifications(posted_at)');
+  }
+
+  /// v7 — learned merchant→category memory. Maps a normalized merchant key
+  /// (e.g. "oxxo") to the category the user most often files it under, so
+  /// captured movements get categorized automatically with no friction. Seeded
+  /// from the user's existing categorized transactions and reinforced on each
+  /// manual category choice. `hits` breaks ties toward the most-used category.
+  static void _migrateTo7(Database db) {
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS merchant_categories (
+        merchant_key TEXT PRIMARY KEY,
+        category_id TEXT,
+        category_name TEXT NOT NULL,
+        hits INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL
+      );
+    ''');
+  }
+
+  /// v8 — Documents workspace. Uploaded bank statements / receipts (PDF, image,
+  /// CSV, pasted text) are tracked in `documents`; the transactions extracted
+  /// from each (by the AI vision/text pipeline, the deterministic CSV parser, or
+  /// CaptureParser) land as editable drafts in `document_transactions`. The user
+  /// reviews, edits and bulk-imports the staged drafts into real `transactions`;
+  /// `transaction_id` links a staged row to the movement it created and
+  /// `dedupe_hash` flags re-imports of the same statement. No FK is declared
+  /// (matching `captured_notifications`): refs are soft + indexed.
+  static void _migrateTo8(Database db) {
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        file_name TEXT,
+        stored_path TEXT,
+        mime_type TEXT,
+        size_bytes INTEGER,
+        page_count INTEGER,
+        status TEXT NOT NULL DEFAULT 'parsing',
+        tx_count INTEGER NOT NULL DEFAULT 0,
+        imported_count INTEGER NOT NULL DEFAULT 0,
+        engine TEXT,
+        error TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    ''');
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS document_transactions (
+        id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL DEFAULT 'Sin categoría',
+        category_id TEXT,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'expense',
+        account TEXT NOT NULL DEFAULT 'Efectivo',
+        account_id TEXT,
+        currency TEXT NOT NULL DEFAULT 'MXN',
+        note TEXT,
+        confidence REAL NOT NULL DEFAULT 0,
+        selected INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'staged',
+        transaction_id TEXT,
+        dedupe_hash TEXT,
+        source_page INTEGER,
+        source_line INTEGER,
+        created_at TEXT NOT NULL
+      );
+    ''');
+    db.execute('CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status)');
+    db.execute('CREATE INDEX IF NOT EXISTS idx_doctx_document ON document_transactions(document_id)');
+    db.execute('CREATE INDEX IF NOT EXISTS idx_doctx_status ON document_transactions(status)');
+    db.execute('CREATE INDEX IF NOT EXISTS idx_doctx_dedupe ON document_transactions(dedupe_hash)');
   }
 }

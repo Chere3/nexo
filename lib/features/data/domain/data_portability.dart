@@ -2,10 +2,15 @@ import 'dart:convert';
 
 import '../../../core/db/local_store.dart';
 import '../../../core/util/ids.dart';
+import '../../transactions/domain/currency.dart';
+import '../../transactions/domain/transaction.dart';
 
 /// Tables included in a full backup/restore. Order matters for FK-free restore
 /// (parents before children isn't enforced since FKs aren't declared, but we
-/// keep a sensible order anyway).
+/// keep a sensible order anyway). The documents review state is included so it
+/// survives device migration; the binary source files are device-local and not
+/// exported (a restored `documents.stored_path` may dangle, which is fine — its
+/// staged rows remain).
 const kBackupTables = <String>[
   'accounts',
   'categories',
@@ -17,6 +22,8 @@ const kBackupTables = <String>[
   'recurring_transactions',
   'debts',
   'category_limits',
+  'documents',
+  'document_transactions',
   'app_meta',
 ];
 
@@ -25,6 +32,32 @@ class ImportResult {
   ImportResult(this.inserted, this.message);
   final int inserted;
   final String message;
+}
+
+/// A draft transaction parsed from a CSV line, WITHOUT touching the DB. Lets the
+/// documents flow stage + review rows before importing.
+class ParsedCsvRow {
+  ParsedCsvRow({
+    required this.title,
+    required this.amount,
+    required this.category,
+    required this.date,
+    required this.type,
+    required this.account,
+    required this.currency,
+    this.note,
+    required this.line,
+  });
+
+  final String title;
+  final double amount;
+  final String category;
+  final DateTime date;
+  final EntryType type;
+  final String account;
+  final String currency;
+  final String? note;
+  final int line;
 }
 
 class DataPortability {
@@ -162,11 +195,12 @@ class DataPortability {
     return info.map((r) => r['name'] as String).toSet();
   }
 
-  /// Imports transactions from a CSV with the header produced by
-  /// [transactionsCsv]. New ids are generated when missing/duplicate-safe.
-  static ImportResult importTransactionsCsv(String csv) {
+  /// Parses transactions from a CSV (header produced by [transactionsCsv], or
+  /// any CSV with at least date/amount columns) WITHOUT writing to the DB.
+  /// Reused by both [importTransactionsCsv] and the documents staging flow.
+  static List<ParsedCsvRow> parseTransactionsCsv(String csv) {
     final lines = const LineSplitter().convert(csv).where((l) => l.trim().isNotEmpty).toList();
-    if (lines.isEmpty) return ImportResult(0, 'Archivo vacío.');
+    if (lines.isEmpty) return const [];
     final header = _parseCsvLine(lines.first).map((h) => h.trim().toLowerCase()).toList();
     int idx(String name) => header.indexOf(name);
 
@@ -182,32 +216,59 @@ class DataPortability {
     final iTitle = idx('title');
     final iNote = idx('note');
 
+    final out = <ParsedCsvRow>[];
+    var lineNo = 1; // header is line 0
+    for (final line in lines.skip(1)) {
+      lineNo++;
+      final f = _parseCsvLine(line);
+      String at(int i) => (i >= 0 && i < f.length) ? f[i] : '';
+      final amount = double.tryParse(at(iAmount).replaceAll(',', '.'));
+      if (amount == null) continue;
+      final date = DateTime.tryParse(at(iDate)) ?? DateTime.now();
+      final type = at(iType).toLowerCase() == 'income' ? EntryType.income : EntryType.expense;
+      out.add(ParsedCsvRow(
+        title: iTitle >= 0 && at(iTitle).isNotEmpty ? at(iTitle) : 'Importado',
+        amount: amount.abs(),
+        category: iCategory >= 0 && at(iCategory).isNotEmpty ? at(iCategory) : 'Sin categoría',
+        date: date,
+        type: type,
+        account: iAccount >= 0 && at(iAccount).isNotEmpty ? at(iAccount) : 'Efectivo',
+        currency: iCurrency >= 0 && at(iCurrency).isNotEmpty ? at(iCurrency) : 'MXN',
+        note: iNote >= 0 && at(iNote).isNotEmpty ? at(iNote) : null,
+        line: lineNo,
+      ));
+    }
+    return out;
+  }
+
+  /// Imports transactions from a CSV with the header produced by
+  /// [transactionsCsv]. New ids are generated when missing/duplicate-safe.
+  static ImportResult importTransactionsCsv(String csv) {
+    final rows = parseTransactionsCsv(csv);
+    if (rows.isEmpty) return ImportResult(0, 'Archivo vacío.');
+
     var inserted = 0;
     LocalStore.db.execute('BEGIN');
     try {
-      for (final line in lines.skip(1)) {
-        final f = _parseCsvLine(line);
-        String at(int i) => (i >= 0 && i < f.length) ? f[i] : '';
-        final amount = double.tryParse(at(iAmount).replaceAll(',', '.'));
-        if (amount == null) continue;
-        final date = DateTime.tryParse(at(iDate))?.toIso8601String() ?? DateTime.now().toIso8601String();
-        final type = at(iType).toLowerCase() == 'income' ? 'income' : 'expense';
+      for (final r in rows) {
+        final dateIso = r.date.toIso8601String();
         LocalStore.db.execute(
-          'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency, note, kind, paid, created_at, updated_at) '
-          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT OR REPLACE INTO transactions (id, title, amount, category, date, type, account, currency, note, kind, paid, exchange_rate, created_at, updated_at) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
             newId('imp'),
-            iTitle >= 0 && at(iTitle).isNotEmpty ? at(iTitle) : 'Importado',
-            amount.abs(),
-            iCategory >= 0 && at(iCategory).isNotEmpty ? at(iCategory) : 'Sin categoría',
-            date,
-            type,
-            iAccount >= 0 && at(iAccount).isNotEmpty ? at(iAccount) : 'Efectivo',
-            iCurrency >= 0 && at(iCurrency).isNotEmpty ? at(iCurrency) : 'MXN',
-            iNote >= 0 ? at(iNote) : null,
+            r.title,
+            r.amount,
+            r.category,
+            dateIso,
+            r.type == EntryType.income ? 'income' : 'expense',
+            r.account,
+            r.currency,
+            r.note,
             'standard',
             1,
-            date,
+            effectiveMxnRate(r.currency),
+            dateIso,
             DateTime.now().toIso8601String(),
           ],
         );

@@ -26,12 +26,16 @@ void main() {
         'category_limits',
         'app_meta',
         'ai_plans',
+        'captured_notifications',
+        'merchant_categories',
+        'documents',
+        'document_transactions',
       ]) {
         expect(tables.contains(t), isTrue, reason: 'missing table $t');
       }
 
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 5);
+      expect(version, 8);
       db.close();
     });
 
@@ -40,7 +44,7 @@ void main() {
       LocalStore.applySchema(db);
       LocalStore.applySchema(db);
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 5);
+      expect(version, 8);
       db.close();
     });
 
@@ -77,7 +81,7 @@ void main() {
       expect(row['currency'], 'MXN');
       expect(row['kind'], 'standard');
       expect((row['paid'] as num).toInt(), 1);
-      expect(db.select('PRAGMA user_version').first['user_version'], 5);
+      expect(db.select('PRAGMA user_version').first['user_version'], 8);
       db.close();
     });
 
@@ -89,6 +93,99 @@ void main() {
           .map((r) => r['name'] as String)
           .toSet();
       for (final c in ['id', 'type', 'title', 'body', 'status', 'created_at']) {
+        expect(cols.contains(c), isTrue, reason: 'missing column $c');
+      }
+      db.close();
+    });
+
+    test('captured_notifications (v6) has the expected columns', () {
+      final db = sqlite3.openInMemory();
+      LocalStore.applySchema(db);
+      final cols = db
+          .select('PRAGMA table_info(captured_notifications)')
+          .map((r) => r['name'] as String)
+          .toSet();
+      for (final c in [
+        'id',
+        'package',
+        'entity',
+        'entity_type',
+        'title',
+        'text',
+        'posted_at',
+        'captured_at',
+        'amount',
+        'direction',
+        'card_last4',
+        'suggested_category',
+        'confidence',
+        'status',
+        'transaction_id',
+      ]) {
+        expect(cols.contains(c), isTrue, reason: 'missing column $c');
+      }
+      db.close();
+    });
+
+    test('documents (v8) has the expected columns', () {
+      final db = sqlite3.openInMemory();
+      LocalStore.applySchema(db);
+      final cols = db
+          .select('PRAGMA table_info(documents)')
+          .map((r) => r['name'] as String)
+          .toSet();
+      for (final c in [
+        'id',
+        'title',
+        'source_type',
+        'file_name',
+        'stored_path',
+        'mime_type',
+        'size_bytes',
+        'page_count',
+        'status',
+        'tx_count',
+        'imported_count',
+        'engine',
+        'error',
+        'note',
+        'created_at',
+        'updated_at',
+      ]) {
+        expect(cols.contains(c), isTrue, reason: 'missing column $c');
+      }
+      db.close();
+    });
+
+    test('document_transactions (v8) has the expected columns', () {
+      final db = sqlite3.openInMemory();
+      LocalStore.applySchema(db);
+      final cols = db
+          .select('PRAGMA table_info(document_transactions)')
+          .map((r) => r['name'] as String)
+          .toSet();
+      for (final c in [
+        'id',
+        'document_id',
+        'title',
+        'amount',
+        'category',
+        'category_id',
+        'date',
+        'type',
+        'account',
+        'account_id',
+        'currency',
+        'note',
+        'confidence',
+        'selected',
+        'status',
+        'transaction_id',
+        'dedupe_hash',
+        'source_page',
+        'source_line',
+        'created_at',
+      ]) {
         expect(cols.contains(c), isTrue, reason: 'missing column $c');
       }
       db.close();

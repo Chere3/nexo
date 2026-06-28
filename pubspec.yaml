@@ -26,6 +26,9 @@ dependencies:
   image_picker: ^1.1.2
   share_plus: ^10.1.4
   file_picker: ^8.1.6
+  # PDF rasterization (pdfium) — render statement pages to images for the AI
+  # vision pipeline. Apache-2.0; avoids commercial-license PDF text extractors.
+  pdfx: ^2.6.0
   flutter_local_notifications: ^17.2.4
   timezone: ^0.9.4
   local_auth: ^2.3.0
@@ -34,6 +37,7 @@ dependencies:
   cloud_firestore: ^5.6.12
   firebase_analytics: ^11.4.5
   flutter_gemma: ^0.16.0
+  google_mlkit_text_recognition: ^0.15.1
 
 dev_dependencies:
   flutter_test:

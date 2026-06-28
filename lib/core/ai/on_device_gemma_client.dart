@@ -146,13 +146,20 @@ class OnDeviceGemmaClient implements LlmClient {
       }
     }
 
-    final model = await FlutterGemma.getActiveModel(maxTokens: maxTokens);
+    // Carga el modelo con soporte de imagen si el spec es multimodal (Gemma 4),
+    // para poder escanear recibos como fallback de visión.
+    final supportsVision = spec?.supportsVision ?? false;
+    final model = await FlutterGemma.getActiveModel(
+      maxTokens: maxTokens,
+      supportImage: supportsVision,
+      maxNumImages: supportsVision ? 1 : null,
+    );
     _model = model;
     _loadedId = modelId;
     return model;
   }
 
-  Future<String> _run(String prompt) async {
+  Future<String> _run(String prompt, {List<AiImage> images = const []}) async {
     // Serialize: wait for any in-flight inference to finish before starting,
     // and let the next caller wait for this one — one session at a time.
     final prior = _inferenceLock;
@@ -161,9 +168,20 @@ class OnDeviceGemmaClient implements LlmClient {
     await prior;
     try {
       final model = await _ensureModel();
-      final session = await model.createSession();
+      final session = await model.createSession(
+        enableVisionModality: images.isNotEmpty ? true : null,
+      );
       try {
-        await session.addQueryChunk(Message.text(text: prompt, isUser: true));
+        if (images.isNotEmpty) {
+          // Gemma 4 multimodal: una imagen (recibo) + el prompt con el schema.
+          await session.addQueryChunk(Message.withImage(
+            text: prompt,
+            imageBytes: base64Decode(images.first.base64Data),
+            isUser: true,
+          ));
+        } else {
+          await session.addQueryChunk(Message.text(text: prompt, isUser: true));
+        }
         return await session.getResponse();
       } finally {
         await session.close();
@@ -184,9 +202,10 @@ class OnDeviceGemmaClient implements LlmClient {
     String? model,
     int maxTokens = 1024,
   }) async {
-    if (images.isNotEmpty) {
+    final visionCapable = onDeviceModelById(modelId)?.supportsVision ?? false;
+    if (images.isNotEmpty && !visionCapable) {
       throw AiException(
-        'El modelo on-device aún no procesa imágenes en Nexo. Para escanear recibos usa un proveedor con visión.',
+        'Este modelo on-device no soporta imágenes. Descarga un Gemma 4 (multimodal) para escanear recibos.',
       );
     }
     final prompt = '$system\n\n'
@@ -195,7 +214,7 @@ class OnDeviceGemmaClient implements LlmClient {
         'Sin texto adicional, sin explicaciones, sin markdown ni comillas de código:\n'
         '${jsonEncode(inputSchema)}\n\n'
         'Entrada del usuario:\n$userText';
-    final raw = await _run(prompt);
+    final raw = await _run(prompt, images: images);
     final parsed = parseJsonObjectLoose(raw);
     if (parsed == null) {
       throw AiException('El modelo on-device no devolvió un JSON válido. Prueba un modelo más grande.');

@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/ai/ai_config.dart';
 import '../../../core/ai/ai_provider_catalog.dart';
+import '../../../core/platform/notification_access.dart';
 import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_feature_header.dart';
 import '../../../design_system/components/ds_list_tile.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
+import '../../capture/domain/capture_controller.dart';
 import 'ai_mode_selector.dart';
 import 'cli_bridge_section.dart';
 import 'on_device_section.dart';
@@ -309,6 +311,42 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           ),
         ),
         const SizedBox(height: 12),
+
+        // ── AutoCapture (bank notifications → movements) ──────────────────
+        Builder(builder: (context) {
+          final pending = ref.watch(pendingCaptureCountProvider);
+          final settings = ref.watch(captureSettingsProvider);
+          final subtitle = !NotificationAccess.isSupported
+              ? 'Solo disponible en Android'
+              : (settings.enabled
+                  ? 'Activada · ${settings.entityIds.length} app(s)'
+                  : 'Convierte notificaciones del banco en movimientos');
+          return DsListTile(
+            icon: Icons.notifications_active_rounded,
+            title: 'AutoCaptura por notificaciones',
+            subtitle: subtitle,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (pending > 0)
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text('$pending',
+                        style: theme.textTheme.labelSmall
+                            ?.copyWith(color: theme.colorScheme.onPrimary, fontWeight: FontWeight.w800)),
+                  ),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+            onTap: () => context.pushNamed('auto-capture'),
+          );
+        }),
+        const SizedBox(height: 8),
 
         // ── Entry point to the AI module hub ──────────────────────────────
         DsListTile(

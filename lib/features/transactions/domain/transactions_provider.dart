@@ -92,9 +92,71 @@ class TransactionsNotifier extends StateNotifier<List<FinanceEntry>> {
   /// Convenience alias — INSERT OR REPLACE already upserts by id.
   void update(FinanceEntry entry) => add(entry);
 
+  /// Inserts/updates many entries in a single transaction with one reload at the
+  /// end — the path used by document import and Batch Add. Mirrors [add]'s
+  /// column order and timestamp handling.
+  void addBatch(List<FinanceEntry> entries) {
+    if (entries.isEmpty) return;
+    final now = DateTime.now();
+    LocalStore.db.execute('BEGIN');
+    try {
+      for (final entry in entries) {
+        LocalStore.db.execute(
+          'INSERT OR REPLACE INTO transactions ($_columns) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            entry.id,
+            entry.title,
+            roundMoney(entry.amount),
+            entry.category,
+            entry.date.toIso8601String(),
+            entry.type == EntryType.income ? 'income' : 'expense',
+            entry.account,
+            entry.currency,
+            entry.note,
+            entry.accountId,
+            entry.categoryId,
+            entry.kind == EntryKind.transfer ? 'transfer' : 'standard',
+            entry.transferAccountId,
+            entry.goalId,
+            entry.paid ? 1 : 0,
+            entry.exchangeRate,
+            (entry.createdAt ?? now).toIso8601String(),
+            now.toIso8601String(),
+          ],
+        );
+      }
+      LocalStore.db.execute('COMMIT');
+    } catch (_) {
+      LocalStore.db.execute('ROLLBACK');
+      rethrow;
+    }
+    load();
+  }
+
+  /// Convenience alias — INSERT OR REPLACE already upserts by id.
+  void updateBatch(List<FinanceEntry> entries) => addBatch(entries);
+
   void remove(String id) {
     LocalStore.db.execute('DELETE FROM transactions WHERE id = ?', [id]);
     LocalStore.db.execute('DELETE FROM transaction_labels WHERE transaction_id = ?', [id]);
+    load();
+  }
+
+  /// Deletes many transactions (and their label links) in one transaction.
+  void removeBatch(List<String> ids) {
+    if (ids.isEmpty) return;
+    LocalStore.db.execute('BEGIN');
+    try {
+      for (final id in ids) {
+        LocalStore.db.execute('DELETE FROM transactions WHERE id = ?', [id]);
+        LocalStore.db.execute('DELETE FROM transaction_labels WHERE transaction_id = ?', [id]);
+      }
+      LocalStore.db.execute('COMMIT');
+    } catch (_) {
+      LocalStore.db.execute('ROLLBACK');
+      rethrow;
+    }
     load();
   }
 
