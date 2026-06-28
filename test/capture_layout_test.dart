@@ -38,6 +38,28 @@ void main() {
       expect(back.visibleQuickFields, cfg.visibleQuickFields);
     });
 
+    test('round-trips the remote OCR endpoint settings', () {
+      final cfg = CaptureLayoutConfig.defaults.copyWith(
+        documentOcr: DocumentOcr.remoteOcr,
+        ocrEndpoint: 'https://api.mistral.ai/v1',
+        ocrApiKey: 'sk-test',
+        ocrModel: 'mistral-ocr-latest',
+      );
+      final back = CaptureLayoutConfig.fromJson(cfg.toJson());
+      expect(back.documentOcr, DocumentOcr.remoteOcr);
+      expect(back.ocrEndpoint, 'https://api.mistral.ai/v1');
+      expect(back.ocrApiKey, 'sk-test');
+      expect(back.ocrModel, 'mistral-ocr-latest');
+      expect(back.remoteOcrConfigured, isTrue);
+    });
+
+    test('defaults: documentOcr onDeviceOcr, ocrModel mistral-ocr-latest, not configured', () {
+      final d = CaptureLayoutConfig.defaults;
+      expect(d.documentOcr, DocumentOcr.onDeviceOcr);
+      expect(d.ocrModel, 'mistral-ocr-latest');
+      expect(d.remoteOcrConfigured, isFalse);
+    });
+
     test('normalizes a partial saved field list by appending missing fields (hidden)', () {
       final json = {
         'quickAddMode': 'manual',

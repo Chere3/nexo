@@ -19,8 +19,10 @@ enum DocumentEngine { configuredProvider, onDevice, askEachTime }
 /// How a PDF/image document is turned into text before the AI structures it.
 /// [onDeviceOcr] runs Google ML Kit on the phone (local, free) then sends the
 /// recognized text to the configured AI; [aiVision] sends the page images
-/// straight to the AI vision model (needs a vision-capable provider).
-enum DocumentOcr { onDeviceOcr, aiVision }
+/// straight to the AI vision model (needs a vision-capable provider);
+/// [remoteOcr] calls a Mistral-OCR-compatible endpoint (cloud or self-hosted
+/// SOTA model) that returns markdown, then sends that to the configured AI.
+enum DocumentOcr { onDeviceOcr, aiVision, remoteOcr }
 
 /// A field that can appear in the Quick Add / Batch Add forms.
 enum CaptureField { type, amount, title, category, account, currency, date, note, paid }
@@ -55,8 +57,9 @@ extension DocumentEngineName on DocumentEngine {
 
 extension DocumentOcrName on DocumentOcr {
   String get label => switch (this) {
-        DocumentOcr.onDeviceOcr => 'OCR en el dispositivo',
+        DocumentOcr.onDeviceOcr => 'En dispositivo',
         DocumentOcr.aiVision => 'Visión IA',
+        DocumentOcr.remoteOcr => 'OCR remoto',
       };
   static DocumentOcr from(String? v) {
     for (final o in DocumentOcr.values) {
@@ -127,6 +130,9 @@ class CaptureLayoutConfig {
     this.defaultCurrency = 'MXN',
     this.documentEngine = DocumentEngine.configuredProvider,
     this.documentOcr = DocumentOcr.onDeviceOcr,
+    this.ocrEndpoint = '',
+    this.ocrApiKey = '',
+    this.ocrModel = 'mistral-ocr-latest',
   });
 
   final QuickAddMode quickAddMode;
@@ -138,6 +144,15 @@ class CaptureLayoutConfig {
   final String defaultCurrency;
   final DocumentEngine documentEngine;
   final DocumentOcr documentOcr;
+
+  /// Remote OCR (Mistral-OCR-compatible) endpoint base URL, e.g.
+  /// `https://api.mistral.ai/v1` or a self-hosted `http://host:port/v1`.
+  final String ocrEndpoint;
+  final String ocrApiKey;
+  final String ocrModel;
+
+  bool get remoteOcrConfigured =>
+      documentOcr == DocumentOcr.remoteOcr && ocrEndpoint.trim().isNotEmpty;
 
   bool isVisible(CaptureField f) =>
       quickAddFields.any((c) => c.field == f && c.visible);
@@ -161,6 +176,9 @@ class CaptureLayoutConfig {
     String? defaultCurrency,
     DocumentEngine? documentEngine,
     DocumentOcr? documentOcr,
+    String? ocrEndpoint,
+    String? ocrApiKey,
+    String? ocrModel,
   }) {
     return CaptureLayoutConfig(
       quickAddMode: quickAddMode ?? this.quickAddMode,
@@ -172,6 +190,9 @@ class CaptureLayoutConfig {
       defaultCurrency: defaultCurrency ?? this.defaultCurrency,
       documentEngine: documentEngine ?? this.documentEngine,
       documentOcr: documentOcr ?? this.documentOcr,
+      ocrEndpoint: ocrEndpoint ?? this.ocrEndpoint,
+      ocrApiKey: ocrApiKey ?? this.ocrApiKey,
+      ocrModel: ocrModel ?? this.ocrModel,
     );
   }
 
@@ -185,6 +206,9 @@ class CaptureLayoutConfig {
         'defaultCurrency': defaultCurrency,
         'documentEngine': documentEngine.name,
         'documentOcr': documentOcr.name,
+        'ocrEndpoint': ocrEndpoint,
+        'ocrApiKey': ocrApiKey,
+        'ocrModel': ocrModel,
       };
 
   static List<FieldConfig> _fieldsFromJson(Object? raw, List<FieldConfig> fallback) {
@@ -212,6 +236,9 @@ class CaptureLayoutConfig {
       defaultCurrency: (j['defaultCurrency'] as String?) ?? 'MXN',
       documentEngine: DocumentEngineName.from(j['documentEngine'] as String?),
       documentOcr: DocumentOcrName.from(j['documentOcr'] as String?),
+      ocrEndpoint: (j['ocrEndpoint'] as String?) ?? '',
+      ocrApiKey: (j['ocrApiKey'] as String?) ?? '',
+      ocrModel: (j['ocrModel'] as String?) ?? 'mistral-ocr-latest',
     );
   }
 

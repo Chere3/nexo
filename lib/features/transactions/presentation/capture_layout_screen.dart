@@ -129,9 +129,15 @@ class CaptureLayoutScreen extends ConsumerWidget {
               'OCR en el dispositivo (Google ML Kit, gratis y privado): reconoce el texto en el teléfono y luego la IA lo estructura. Recomendado.',
             DocumentOcr.aiVision =>
               'Envía las páginas como imágenes a un proveedor con visión (requiere modelo de visión, p. ej. Codex en el bridge).',
+            DocumentOcr.remoteOcr =>
+              'Usa un endpoint OCR SOTA compatible con Mistral OCR (nube o contenedor self-hosted) que devuelve markdown; luego la IA lo estructura. Para estados escaneados/complejos.',
           },
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        if (cfg.documentOcr == DocumentOcr.remoteOcr) ...[
+          const SizedBox(height: 10),
+          _RemoteOcrFields(config: cfg, notifier: notifier),
+        ],
         const SizedBox(height: 18),
 
         _SectionTitle('Motor de IA para documentos'),
@@ -231,6 +237,79 @@ class _DefaultPicker extends StatelessWidget {
       ],
       onChanged: onChanged,
       decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.star_outline_rounded)),
+    );
+  }
+}
+
+class _RemoteOcrFields extends StatefulWidget {
+  const _RemoteOcrFields({required this.config, required this.notifier});
+  final CaptureLayoutConfig config;
+  final CaptureLayoutNotifier notifier;
+
+  @override
+  State<_RemoteOcrFields> createState() => _RemoteOcrFieldsState();
+}
+
+class _RemoteOcrFieldsState extends State<_RemoteOcrFields> {
+  late final TextEditingController _url;
+  late final TextEditingController _key;
+  late final TextEditingController _model;
+
+  @override
+  void initState() {
+    super.initState();
+    _url = TextEditingController(text: widget.config.ocrEndpoint);
+    _key = TextEditingController(text: widget.config.ocrApiKey);
+    _model = TextEditingController(text: widget.config.ocrModel);
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _key.dispose();
+    _model.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: _url,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          onChanged: (v) => widget.notifier.setOcrEndpoint(endpoint: v),
+          decoration: const InputDecoration(
+            labelText: 'Endpoint (base URL)',
+            hintText: 'https://api.mistral.ai/v1',
+            prefixIcon: Icon(Icons.link_rounded),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _key,
+          obscureText: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          onChanged: (v) => widget.notifier.setOcrEndpoint(apiKey: v),
+          decoration: const InputDecoration(
+            labelText: 'API key (opcional para self-hosted)',
+            prefixIcon: Icon(Icons.key_rounded),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _model,
+          autocorrect: false,
+          onChanged: (v) => widget.notifier.setOcrEndpoint(model: v),
+          decoration: const InputDecoration(
+            labelText: 'Modelo',
+            hintText: 'mistral-ocr-latest',
+            prefixIcon: Icon(Icons.document_scanner_outlined),
+          ),
+        ),
+      ],
     );
   }
 }

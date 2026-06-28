@@ -46,6 +46,10 @@ class CaptureLayoutNotifier extends StateNotifier<CaptureLayoutConfig> {
 
   void setDocumentOcr(DocumentOcr ocr) => _save(state.copyWith(documentOcr: ocr));
 
+  void setOcrEndpoint({String? endpoint, String? apiKey, String? model}) {
+    _save(state.copyWith(ocrEndpoint: endpoint, ocrApiKey: apiKey, ocrModel: model));
+  }
+
   void setDefaults({
     EntryType? type,
     String? categoryName,

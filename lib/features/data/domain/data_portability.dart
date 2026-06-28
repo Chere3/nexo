@@ -142,6 +142,16 @@ class DataPortability {
         return null; // unparseable → drop to be safe
       }
     }
+    if (key == 'capture_layout') {
+      // The capture layout blob may hold a remote-OCR API key — blank it.
+      try {
+        final obj = jsonDecode(row['value'] as String) as Map<String, dynamic>;
+        if (obj.containsKey('ocrApiKey')) obj['ocrApiKey'] = '';
+        return {...row, 'value': jsonEncode(obj)};
+      } catch (_) {
+        return row;
+      }
+    }
     return row;
   }
 

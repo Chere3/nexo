@@ -26,6 +26,7 @@ import 'document_transaction.dart';
 import 'document_transactions_repository.dart';
 import 'documents_provider.dart';
 import 'ocr_service.dart';
+import 'remote_ocr_client.dart';
 
 /// Max statement pages we rasterize+send per document (memory + token guard).
 const _kMaxPdfPages = 40;
@@ -163,9 +164,16 @@ class DocumentParser {
     final path = doc.storedPath;
     if (path == null) return (rows: <DocumentTransaction>[], failed: 1);
 
+    final ocrMode = ref.read(captureLayoutProvider).documentOcr;
+
+    // Remote SOTA OCR endpoint (Mistral-OCR-compatible) → markdown → AI text.
+    if (ocrMode == DocumentOcr.remoteOcr) {
+      return _remoteOcrStage(doc, path, doc.mimeType ?? 'image/jpeg', ai);
+    }
+
     // On-device OCR (default): recognize the text on the phone, then let the AI
     // structure it — the same text path that already works reliably.
-    if (ref.read(captureLayoutProvider).documentOcr == DocumentOcr.onDeviceOcr) {
+    if (ocrMode == DocumentOcr.onDeviceOcr) {
       try {
         final text = await ref.read(ocrServiceProvider).ocrImageFile(path);
         ref.read(documentsRepositoryProvider).setNote(doc.id, text.trim().isEmpty ? null : text);
@@ -202,6 +210,12 @@ class DocumentParser {
     if (path == null) return (rows: <DocumentTransaction>[], failed: 1);
 
     final ocrMode = ref.read(captureLayoutProvider).documentOcr;
+
+    // Remote SOTA OCR: send the whole PDF (it handles multi-page natively).
+    if (ocrMode == DocumentOcr.remoteOcr) {
+      return _remoteOcrStage(doc, path, 'application/pdf', ai);
+    }
+
     final document = await PdfDocument.openFile(path);
     try {
       final total = min(document.pagesCount, _kMaxPdfPages);
@@ -297,6 +311,30 @@ class DocumentParser {
       NexoDocument doc, AiServices ai) async {
     final content = await _readText(doc);
     return _stageFromText(doc, content ?? '', ai);
+  }
+
+  /// Sends the document to a Mistral-OCR-compatible endpoint, stores the
+  /// returned markdown, then structures it with the AI. Throws (caught by
+  /// parseAndStage, which records the message) when the endpoint is missing or
+  /// fails — remote OCR is a single call for the whole document.
+  Future<({List<DocumentTransaction> rows, int failed})> _remoteOcrStage(
+      NexoDocument doc, String path, String mimeType, AiServices ai) async {
+    final cfg = ref.read(captureLayoutProvider);
+    if (cfg.ocrEndpoint.trim().isEmpty) {
+      throw RemoteOcrException(
+          'Configura la URL del endpoint OCR en Ajustes → Captura y layout.');
+    }
+    final bytes = await File(path).readAsBytes();
+    final text = await ref.read(remoteOcrClientProvider).recognize(
+          baseUrl: cfg.ocrEndpoint,
+          apiKey: cfg.ocrApiKey,
+          model: cfg.ocrModel,
+          bytes: bytes,
+          mimeType: mimeType,
+        );
+    ref.read(documentsRepositoryProvider).setNote(doc.id, text.trim().isEmpty ? null : text);
+    if (text.trim().isEmpty) return (rows: <DocumentTransaction>[], failed: 1);
+    return _stageFromText(doc, text, ai);
   }
 
   /// Shared text→drafts path: chunk the text, run the AI text extractor per
