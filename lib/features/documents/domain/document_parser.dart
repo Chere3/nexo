@@ -324,7 +324,18 @@ class DocumentParser {
       throw RemoteOcrException(
           'Configura la URL del endpoint OCR en Ajustes → Captura y layout.');
     }
-    final bytes = await File(path).readAsBytes();
+    // Guard against OOM / oversized payloads (base64 adds ~33%).
+    const maxBytes = 50 * 1024 * 1024;
+    final file = File(path);
+    if (await file.length() > maxBytes) {
+      throw RemoteOcrException('El archivo supera el máximo para OCR remoto (~50 MB).');
+    }
+    final List<int> bytes;
+    try {
+      bytes = await file.readAsBytes();
+    } catch (e) {
+      throw RemoteOcrException('No se pudo leer el archivo: $e');
+    }
     final text = await ref.read(remoteOcrClientProvider).recognize(
           baseUrl: cfg.ocrEndpoint,
           apiKey: cfg.ocrApiKey,

@@ -264,6 +264,18 @@ class _RemoteOcrFieldsState extends State<_RemoteOcrFields> {
   }
 
   @override
+  void didUpdateWidget(_RemoteOcrFields oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sync controllers when the config changes externally (e.g. applying a
+    // template or resetting). The `!=` guard avoids resetting the field — and
+    // the cursor — while the user is typing (onChanged updates the config, so
+    // the controller already matches the new value).
+    if (widget.config.ocrEndpoint != _url.text) _url.text = widget.config.ocrEndpoint;
+    if (widget.config.ocrApiKey != _key.text) _key.text = widget.config.ocrApiKey;
+    if (widget.config.ocrModel != _model.text) _model.text = widget.config.ocrModel;
+  }
+
+  @override
   void dispose() {
     _url.dispose();
     _key.dispose();

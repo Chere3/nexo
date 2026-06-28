@@ -46,6 +46,8 @@ class CaptureLayoutNotifier extends StateNotifier<CaptureLayoutConfig> {
 
   void setDocumentOcr(DocumentOcr ocr) => _save(state.copyWith(documentOcr: ocr));
 
+  /// Updates the remote-OCR config. Pass only the fields to change; a null
+  /// argument keeps the current value (to blank a field, pass '').
   void setOcrEndpoint({String? endpoint, String? apiKey, String? model}) {
     _save(state.copyWith(ocrEndpoint: endpoint, ocrApiKey: apiKey, ocrModel: model));
   }
