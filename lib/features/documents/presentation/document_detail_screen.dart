@@ -9,6 +9,7 @@ import '../../categories/domain/categories_provider.dart';
 import '../../transactions/domain/currency.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../../transactions/presentation/quick_add_sheet.dart' show parseAmountInput;
 import '../domain/document.dart';
 import '../domain/document_reconciler.dart';
 import '../domain/document_transaction.dart';
@@ -971,14 +972,6 @@ class _EditDraftSheetState extends State<_EditDraftSheet> {
     super.dispose();
   }
 
-  double? _parseAmount(String input) {
-    final raw = input.trim().replaceAll(' ', '');
-    if (raw.isEmpty) return null;
-    if (raw.contains(',') && raw.contains('.')) return double.tryParse(raw.replaceAll(',', ''));
-    if (raw.contains(',')) return double.tryParse(raw.replaceAll(',', '.'));
-    return double.tryParse(raw);
-  }
-
   @override
   Widget build(BuildContext context) {
     final categoryNames = {widget.draft.category, for (final c in widget.categories) c.name}.toList();
@@ -1075,7 +1068,7 @@ class _EditDraftSheetState extends State<_EditDraftSheet> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () {
-                  final amount = _parseAmount(_amount.text);
+                  final amount = parseAmountInput(_amount.text);
                   if (amount == null || amount <= 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Ingresa un monto válido')),

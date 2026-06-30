@@ -246,6 +246,18 @@ class DocumentsScreen extends ConsumerWidget {
     final setting = ref.read(captureLayoutProvider).documentEngine;
     if (setting == DocumentEngine.askEachTime && type != DocumentSourceType.csv && context.mounted) {
       engineOverride = await _askEngine(context);
+      // Dismissing the dialog (back button / tap outside) returns null. Treat
+      // that as cancellation rather than silently falling back to the cloud
+      // provider — the document may be sensitive and the user made no choice.
+      if (engineOverride == null) {
+        await ref.read(documentsProvider.notifier).remove(doc.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Procesamiento cancelado.')),
+          );
+        }
+        return;
+      }
     }
 
     // Parse in the background; the new document appears in the list with its
