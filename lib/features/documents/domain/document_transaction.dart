@@ -30,6 +30,35 @@ extension DocTxStatusName on DocTxStatus {
   }
 }
 
+/// What the reconciler decided to do with a draft against existing movements.
+/// `null` means the draft has not been reconciled yet (legacy/import-only flow).
+enum ReconcileAction {
+  /// No existing movement matched — import as a new transaction.
+  add,
+
+  /// Matched an existing movement whose fields differ — overwrite it with the
+  /// document's values (the document is the source of truth).
+  update,
+
+  /// Matched an existing movement with identical fields — nothing to do.
+  identical,
+
+  /// A synthetic row standing for an existing movement inside the document's
+  /// scope (account + date range) that no draft matched — propose deleting it.
+  delete,
+}
+
+extension ReconcileActionName on ReconcileAction {
+  String get dbValue => name;
+  static ReconcileAction? from(String? v) {
+    if (v == null) return null;
+    for (final a in ReconcileAction.values) {
+      if (a.name == v) return a;
+    }
+    return null;
+  }
+}
+
 /// A draft transaction extracted from a document, editable before import.
 class DocumentTransaction {
   DocumentTransaction({
@@ -48,6 +77,9 @@ class DocumentTransaction {
     this.confidence = 0,
     this.selected = true,
     this.status = DocTxStatus.staged,
+    this.reconcileAction,
+    this.matchTxId,
+    this.matchConfidence,
     this.transactionId,
     this.dedupeHash,
     this.sourcePage,
@@ -70,6 +102,17 @@ class DocumentTransaction {
   final double confidence;
   final bool selected;
   final DocTxStatus status;
+
+  /// Reconcile decision (null until the reconciler runs). Drafts imported via
+  /// the legacy add-only flow leave this null.
+  final ReconcileAction? reconcileAction;
+
+  /// Id of the existing movement this draft was matched to — set for `update`
+  /// and `delete` actions (the movement to overwrite or remove).
+  final String? matchTxId;
+
+  /// Match confidence in `[0,1]` when the match came from the AI pass.
+  final double? matchConfidence;
   final String? transactionId;
   final String? dedupeHash;
   final int? sourcePage;
@@ -77,6 +120,9 @@ class DocumentTransaction {
   final DateTime createdAt;
 
   bool get isImported => status == DocTxStatus.imported;
+
+  /// True for a synthetic "exists in the app but not in the document" row.
+  bool get isDeleteCandidate => reconcileAction == ReconcileAction.delete;
 
   DocumentTransaction copyWith({
     String? title,
@@ -92,6 +138,9 @@ class DocumentTransaction {
     double? confidence,
     bool? selected,
     DocTxStatus? status,
+    ReconcileAction? reconcileAction,
+    String? matchTxId,
+    double? matchConfidence,
     String? transactionId,
     String? dedupeHash,
     int? sourcePage,
@@ -113,6 +162,9 @@ class DocumentTransaction {
       confidence: confidence ?? this.confidence,
       selected: selected ?? this.selected,
       status: status ?? this.status,
+      reconcileAction: reconcileAction ?? this.reconcileAction,
+      matchTxId: matchTxId ?? this.matchTxId,
+      matchConfidence: matchConfidence ?? this.matchConfidence,
       transactionId: transactionId ?? this.transactionId,
       dedupeHash: dedupeHash ?? this.dedupeHash,
       sourcePage: sourcePage ?? this.sourcePage,
@@ -158,6 +210,9 @@ class DocumentTransaction {
       confidence: (r['confidence'] as num?)?.toDouble() ?? 0,
       selected: ((r['selected'] as num?)?.toInt() ?? 1) == 1,
       status: DocTxStatusName.from(r['status'] as String?),
+      reconcileAction: ReconcileActionName.from(r['reconcile_action'] as String?),
+      matchTxId: r['match_tx_id'] as String?,
+      matchConfidence: (r['match_confidence'] as num?)?.toDouble(),
       transactionId: r['transaction_id'] as String?,
       dedupeHash: r['dedupe_hash'] as String?,
       sourcePage: (r['source_page'] as num?)?.toInt(),

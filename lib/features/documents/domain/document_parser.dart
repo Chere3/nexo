@@ -22,6 +22,7 @@ import '../../transactions/domain/capture_layout_provider.dart';
 import '../../transactions/domain/transactions_provider.dart';
 import '../../data/domain/data_portability.dart';
 import 'document.dart';
+import 'document_reconciler.dart';
 import 'document_transaction.dart';
 import 'document_transactions_repository.dart';
 import 'documents_provider.dart';
@@ -94,6 +95,18 @@ class DocumentParser {
       docsRepo.updateStatus(doc.id, DocumentStatus.failed, error: e.toString());
     }
 
+    // Classify the freshly-extracted drafts here (add/update/identical) BEFORE
+    // surfacing `parsed`, so the detail screen opens already reconciled and
+    // never has to mutate providers from a build-time callback while its route
+    // is still transitioning in (which tripped a framework assertion).
+    final fresh = docsRepo.byId(doc.id);
+    if (fresh != null && fresh.status != DocumentStatus.failed) {
+      try {
+        ref.read(documentReconcilerProvider).reconcile(fresh);
+      } catch (_) {/* best-effort; drafts remain importable unreconciled */}
+    }
+    // Surface the new status. Drafts were just reloaded by reconcile, so when
+    // the status flips to `parsed` the UI already sees their reconcile action.
     ref.read(documentsProvider.notifier).load();
     ref.read(documentTransactionsProvider(doc.id).notifier).load();
   }
