@@ -8,6 +8,13 @@ import 'package:intl/intl.dart';
 import '../../../core/ai/ai_config.dart';
 import '../../../core/ai/llm_client.dart';
 import '../../../core/util/ids.dart';
+import '../../../design_system/components/ds_input.dart';
+import '../../../design_system/components/ds_list_tile.dart';
+import '../../../design_system/components/ds_primary_button.dart';
+import '../../../design_system/components/ds_select.dart';
+import '../../../design_system/tokens/ds_motion.dart';
+import '../../../design_system/tokens/ds_radius.dart';
+import '../../../design_system/tokens/ds_spacing.dart';
 import '../../accounts/domain/accounts_provider.dart';
 import '../../ai/domain/ai_providers.dart';
 import '../../ai/domain/ai_services.dart';
@@ -107,11 +114,12 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
     });
     try {
       final draft = await op(svc);
+      if (!mounted) return;
       _applyDraft(draft);
     } on AiException catch (e) {
-      setState(() => _aiError = e.message);
+      if (mounted) setState(() => _aiError = e.message);
     } catch (e) {
-      setState(() => _aiError = 'Algo salió mal: $e');
+      if (mounted) setState(() => _aiError = 'Algo salió mal: $e');
     } finally {
       if (mounted) setState(() => _aiLoading = false);
     }
@@ -147,6 +155,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
     final XFile? chosen = file ?? await picker.pickImage(source: ImageSource.gallery, imageQuality: 75, maxWidth: 1600);
     if (chosen == null) return;
     final bytes = await chosen.readAsBytes();
+    if (!mounted) return;
     final media = chosen.mimeType ?? (chosen.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
     final catalog = ref.read(aiCatalogProvider);
     await _runAi((svc) => svc.parseReceipt(
@@ -212,7 +221,12 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
     final showManual = cfg.quickAddMode != QuickAddMode.ai;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.viewInsetsOf(context).bottom + 16),
+      padding: EdgeInsets.fromLTRB(
+        DsSpacing.md,
+        DsSpacing.xs,
+        DsSpacing.md,
+        MediaQuery.viewInsetsOf(context).bottom + DsSpacing.md,
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -220,7 +234,7 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           children: [
             Row(
               children: [
-                Text('Quick add', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                Text('Quick add', style: theme.textTheme.titleLarge),
                 const Spacer(),
                 _ModeChip(mode: cfg.quickAddMode),
               ],
@@ -251,13 +265,10 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
             else if (_aiLoading)
               const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator())),
             const SizedBox(height: 6),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: showManual ? _save : _saveFromAiDraftOnly,
-                icon: const Icon(Icons.check_rounded),
-                label: const Text('Guardar'),
-              ),
+            DsPrimaryButton(
+              onPressed: showManual ? _save : _saveFromAiDraftOnly,
+              icon: Icons.check_rounded,
+              label: 'Guardar',
             ),
           ],
         ),
@@ -273,16 +284,18 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           onChanged: (t) => setState(() => _type = t),
         );
       case CaptureField.amount:
-        return TextField(
+        return DsInput(
           controller: _amount,
+          label: 'Monto',
+          icon: Icons.attach_money_rounded,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Monto', prefixIcon: Icon(Icons.attach_money_rounded)),
         );
       case CaptureField.title:
-        return TextField(
+        return DsInput(
           controller: _title,
-          decoration: const InputDecoration(labelText: 'Concepto (opcional)', prefixIcon: Icon(Icons.edit_note_rounded)),
+          label: 'Concepto (opcional)',
+          icon: Icons.edit_note_rounded,
         );
       case CaptureField.category:
         final names = {if (_category != null) _category!, ...categories}.toList();
@@ -303,20 +316,27 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
         );
       case CaptureField.account:
         final names = {if (_account != null) _account!, ...accounts, 'Efectivo'}.toList();
+        // Account names are user-defined and can be arbitrarily long, so this
+        // dropdown keeps isExpanded:true to ellipsize the selected value.
+        // DsSelect doesn't expose isExpanded, hence the raw form field here.
         return DropdownButtonFormField<String>(
           initialValue: _account,
           isExpanded: true,
           items: [for (final a in names) DropdownMenuItem(value: a, child: Text(a))],
           onChanged: (v) => setState(() => _account = v),
-          decoration: const InputDecoration(labelText: 'Cuenta', prefixIcon: Icon(Icons.account_balance_wallet_outlined)),
+          decoration: const InputDecoration(
+            labelText: 'Cuenta',
+            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+          ),
         );
       case CaptureField.currency:
         final names = {_currency, ...supportedCurrencies}.toList();
-        return DropdownButtonFormField<String>(
-          initialValue: _currency,
+        return DsSelect<String>(
+          label: 'Moneda',
+          value: _currency,
+          icon: Icons.currency_exchange_rounded,
           items: [for (final c in names) DropdownMenuItem(value: c, child: Text(c))],
           onChanged: (v) => setState(() => _currency = v ?? _currency),
-          decoration: const InputDecoration(labelText: 'Moneda', prefixIcon: Icon(Icons.currency_exchange_rounded)),
         );
       case CaptureField.date:
         return OutlinedButton.icon(
@@ -333,9 +353,10 @@ class _QuickAddSheetState extends ConsumerState<_QuickAddSheet> {
           label: Text('Fecha: ${DateFormat.yMMMd('es_MX').format(_date)}'),
         );
       case CaptureField.note:
-        return TextField(
+        return DsInput(
           controller: _note,
-          decoration: const InputDecoration(labelText: 'Nota (opcional)', prefixIcon: Icon(Icons.sticky_note_2_outlined)),
+          label: 'Nota (opcional)',
+          icon: Icons.sticky_note_2_outlined,
         );
       case CaptureField.paid:
         return SwitchListTile(
@@ -366,12 +387,10 @@ class _ModeChip extends StatelessWidget {
 class _AiNotConfigured extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.key_rounded),
-        title: const Text('Configura la IA'),
-        subtitle: const Text('Activa un proveedor en Ajustes → IA para usar el modo IA. Mientras, usa el formulario manual.'),
-      ),
+    return const DsListTile(
+      icon: Icons.key_rounded,
+      title: 'Configura la IA',
+      subtitle: 'Activa un proveedor en Ajustes → IA para usar el modo IA. Mientras, usa el formulario manual.',
     );
   }
 }
@@ -437,26 +456,27 @@ class _TypePills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     Widget pill(String label, IconData icon, EntryType value, Color bg, Color fg) {
       final selected = type == value;
       return Expanded(
         child: GestureDetector(
           onTap: () => onChanged(value),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: DsMotion.fast,
             height: 50,
             decoration: BoxDecoration(
               color: selected ? bg : scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: selected ? Colors.transparent : scheme.outlineVariant),
+              borderRadius: DsRadius.brMd,
+              border: selected ? null : Border.all(color: scheme.outlineVariant),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(icon, size: 18, color: selected ? fg : scheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: selected ? fg : scheme.onSurface)),
+                const SizedBox(width: DsSpacing.xs),
+                Text(label, style: theme.textTheme.labelLarge?.copyWith(color: selected ? fg : scheme.onSurface)),
               ],
             ),
           ),

@@ -34,6 +34,8 @@ void main() {
       expect(rows.single.category, 'Sin categoría');
       expect(rows.single.account, 'Efectivo');
       expect(rows.single.currency, 'MXN');
+      // No type column and an unsigned amount is ambiguous, so it keeps the
+      // historical default of expense.
       expect(rows.single.type, EntryType.expense);
     });
 

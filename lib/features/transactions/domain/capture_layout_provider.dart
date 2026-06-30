@@ -108,10 +108,12 @@ class CaptureLayoutNotifier extends StateNotifier<CaptureLayoutConfig> {
   void saveTemplate(String name) {
     final list = [...templates(), CaptureTemplate(id: newId('tpl'), name: name, config: state)];
     _saveTemplates(list);
+    state = state.copyWith(); // notify listeners so the template list rebuilds
   }
 
   void deleteTemplate(String id) {
     _saveTemplates([for (final t in templates()) if (t.id != id) t]);
+    state = state.copyWith(); // notify listeners so the template list rebuilds
   }
 
   void applyTemplate(String id) {

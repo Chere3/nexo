@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../design_system/components/ds_card.dart';
 import '../../../design_system/components/ds_screen_scaffold.dart';
+import '../../../design_system/tokens/ds_radius.dart';
+import '../../../design_system/tokens/ds_spacing.dart';
 import '../../accounts/domain/accounts_provider.dart';
 import '../../categories/domain/categories_provider.dart';
 import '../domain/capture_layout.dart';
@@ -165,7 +168,7 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: DsSpacing.xs),
       child: Text(text,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
     );
@@ -192,9 +195,10 @@ class _FieldReorderList extends StatelessWidget {
       onReorder: onReorder,
       children: [
         for (var i = 0; i < fields.length; i++)
-          Card(
+          DsCard(
             key: ValueKey(fields[i].field.name),
-            margin: const EdgeInsets.only(bottom: 6),
+            margin: const EdgeInsets.only(bottom: DsSpacing.xs),
+            padding: EdgeInsets.zero,
             child: ListTile(
               leading: ReorderableDragStartListener(
                 index: i,
@@ -346,10 +350,9 @@ class _PreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final fields = config.visibleQuickFields;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    return DsCard(
+      padding: const EdgeInsets.all(DsSpacing.sm + 2),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -371,7 +374,7 @@ class _PreviewCard extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: DsRadius.brSm,
                 ),
                 child: Row(
                   children: [
@@ -393,9 +396,9 @@ class _PreviewCard extends StatelessWidget {
                         child: Container(
                           height: 38,
                           alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: DsSpacing.sm),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: DsRadius.brXs,
                             border: Border.all(color: scheme.outlineVariant),
                           ),
                           child: Text(f.label, style: Theme.of(context).textTheme.bodySmall),
@@ -409,7 +412,6 @@ class _PreviewCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
-      ),
     );
   }
 }
@@ -431,8 +433,9 @@ class _Templates extends ConsumerWidget {
               style: Theme.of(context).textTheme.bodySmall)
         else
           for (final t in templates)
-            Card(
-              margin: const EdgeInsets.only(bottom: 6),
+            DsCard(
+              margin: const EdgeInsets.only(bottom: DsSpacing.xs),
+              padding: EdgeInsets.zero,
               child: ListTile(
                 leading: const Icon(Icons.bookmark_outline_rounded),
                 title: Text(t.name),

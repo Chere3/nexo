@@ -13,6 +13,9 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/util/ids.dart';
 import '../../../design_system/components/ds_empty_state.dart';
 import '../../../design_system/components/ds_list_tile.dart';
+import '../../../design_system/components/ds_screen_scaffold.dart';
+import '../../../design_system/tokens/ds_radius.dart';
+import '../../../design_system/tokens/ds_spacing.dart';
 import '../../transactions/domain/capture_layout.dart';
 import '../../transactions/domain/capture_layout_provider.dart';
 import '../domain/document.dart';
@@ -53,17 +56,14 @@ class DocumentsScreen extends ConsumerWidget {
         children: body,
       );
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('Documentos')),
+    return DsScreenScaffold(
+      title: 'Documentos',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showUploadSheet(context, ref),
         icon: const Icon(Icons.upload_file_rounded),
         label: const Text('Subir'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 104),
-        children: body,
-      ),
+      children: body,
     );
   }
 
@@ -73,13 +73,10 @@ class DocumentsScreen extends ConsumerWidget {
       showDragHandle: true,
       builder: (sheetCtx) {
         Widget option(IconData icon, String title, String subtitle, VoidCallback onTap) {
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(sheetCtx).colorScheme.secondaryContainer,
-              child: Icon(icon, color: Theme.of(sheetCtx).colorScheme.onSecondaryContainer),
-            ),
-            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(subtitle),
+          return DsListTile(
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
             onTap: () {
               Navigator.pop(sheetCtx);
               onTap();
@@ -92,7 +89,8 @@ class DocumentsScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                padding: const EdgeInsets.fromLTRB(
+                    DsSpacing.lg, DsSpacing.xxs, DsSpacing.lg, DsSpacing.xs),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Subir documento',
@@ -107,7 +105,7 @@ class DocumentsScreen extends ConsumerWidget {
                   'Fotografía un estado de cuenta o recibo', () => _pickImage(context, ref, ImageSource.camera)),
               option(Icons.content_paste_rounded, 'Pegar texto',
                   'Pega el texto de los movimientos directamente', () => _pasteText(context, ref)),
-              const SizedBox(height: 8),
+              const SizedBox(height: DsSpacing.xs),
             ],
           ),
         );
@@ -293,11 +291,11 @@ class _UploadCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: DsRadius.brMd,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(DsSpacing.md),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: DsRadius.brMd,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,

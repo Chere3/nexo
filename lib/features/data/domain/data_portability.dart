@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:intl/intl.dart';
+
 import '../../../core/db/local_store.dart';
 import '../../../core/util/ids.dart';
 import '../../transactions/domain/currency.dart';
@@ -152,6 +154,21 @@ class DataPortability {
         return row;
       }
     }
+    if (key == 'capture_templates') {
+      // Each saved template embeds a full capture config that may hold a
+      // remote-OCR API key — blank it inside every template entry.
+      try {
+        final list = jsonDecode(row['value'] as String) as List;
+        for (final t in list) {
+          if (t is Map && t['config'] is Map) {
+            (t['config'] as Map)['ocrApiKey'] = '';
+          }
+        }
+        return {...row, 'value': jsonEncode(list)};
+      } catch (_) {
+        return null; // unparseable → drop to be safe
+      }
+    }
     return row;
   }
 
@@ -232,13 +249,26 @@ class DataPortability {
       lineNo++;
       final f = _parseCsvLine(line);
       String at(int i) => (i >= 0 && i < f.length) ? f[i] : '';
-      final amount = double.tryParse(at(iAmount).replaceAll(',', '.'));
-      if (amount == null) continue;
-      final date = DateTime.tryParse(at(iDate)) ?? DateTime.now();
-      final type = at(iType).toLowerCase() == 'income' ? EntryType.income : EntryType.expense;
+      // es_MX numbers use ',' only as a thousands separator and '.' as the
+      // decimal separator, so strip every comma before parsing.
+      final rawAmount = at(iAmount).trim();
+      final cleanedAmount = rawAmount.replaceAll(',', '');
+      final signed = double.tryParse(cleanedAmount);
+      if (signed == null) continue;
+      final date = _parseFlexibleDate(at(iDate));
+      if (date == null) continue;
+      // Honor an explicit type column. Otherwise only a signed amount tells us
+      // the direction (negative = expense, positive = income); an unsigned
+      // amount is ambiguous, so it keeps the historical default of expense.
+      final hasExplicitSign = rawAmount.startsWith('-') || rawAmount.startsWith('+');
+      final EntryType type = iType >= 0
+          ? (at(iType).toLowerCase() == 'income' ? EntryType.income : EntryType.expense)
+          : (hasExplicitSign
+              ? (signed < 0 ? EntryType.expense : EntryType.income)
+              : EntryType.expense);
       out.add(ParsedCsvRow(
         title: iTitle >= 0 && at(iTitle).isNotEmpty ? at(iTitle) : 'Importado',
-        amount: amount.abs(),
+        amount: signed.abs(),
         category: iCategory >= 0 && at(iCategory).isNotEmpty ? at(iCategory) : 'Sin categoría',
         date: date,
         type: type,
@@ -290,6 +320,24 @@ class DataPortability {
       rethrow;
     }
     return ImportResult(inserted, 'Importadas $inserted transacciones.');
+  }
+
+  /// Parses a date from a CSV cell, trying ISO-8601 first and then common
+  /// es_MX-locale formats. Returns null (so the caller skips the row) rather
+  /// than silently stamping today's date on an unparseable value.
+  static DateTime? _parseFlexibleDate(String s) {
+    s = s.trim();
+    if (s.isEmpty) return null;
+    final iso = DateTime.tryParse(s);
+    if (iso != null) return iso;
+    for (final fmt in const ['dd/MM/yyyy', 'dd-MM-yyyy', 'yyyy/MM/dd', 'MM/dd/yyyy']) {
+      try {
+        return DateFormat(fmt).parseStrict(s);
+      } catch (_) {
+        // try next format
+      }
+    }
+    return null;
   }
 
   static String _csvField(Object? value) {

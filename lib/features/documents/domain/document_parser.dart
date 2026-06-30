@@ -384,9 +384,14 @@ class DocumentParser {
   Future<String?> _readText(NexoDocument doc) async {
     if (doc.storedPath == null) return doc.note;
     try {
-      return await File(doc.storedPath!).readAsString();
+      final bytes = await File(doc.storedPath!).readAsBytes();
+      try {
+        return utf8.decode(bytes); // strict first (correct for UTF-8 files)
+      } on FormatException {
+        return latin1.decode(bytes); // Windows-1252/Latin-1 bank exports
+      }
     } catch (_) {
-      return doc.note;
+      return doc.note; // genuine IO error
     }
   }
 

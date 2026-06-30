@@ -18,7 +18,11 @@ class RemoteOcrException implements Exception {
 /// in front of dots.ocr / Marker). The response is parsed leniently: page
 /// markdown is preferred, with `text`/`content`/`markdown` fallbacks.
 class RemoteOcrClient {
-  const RemoteOcrClient();
+  const RemoteOcrClient({http.Client? httpClient}) : _client = httpClient;
+
+  /// Optional injected client (for tests). When null a one-shot [http.Client] is
+  /// created and closed per request.
+  final http.Client? _client;
 
   Future<String> recognize({
     required String baseUrl,
@@ -42,9 +46,10 @@ class RemoteOcrClient {
     // statements on slow links don't time out prematurely.
     final timeoutSecs = (bytes.length / (1024 * 1024)).ceil() * 20;
 
+    final client = _client ?? http.Client();
     final http.Response res;
     try {
-      res = await http
+      res = await client
           .post(
             uri,
             headers: {
@@ -60,6 +65,8 @@ class RemoteOcrClient {
           .timeout(Duration(seconds: timeoutSecs < 120 ? 120 : timeoutSecs));
     } catch (e) {
       throw RemoteOcrException('No se pudo contactar el endpoint OCR: $e');
+    } finally {
+      if (_client == null) client.close();
     }
 
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -69,13 +76,16 @@ class RemoteOcrClient {
       throw RemoteOcrException('$where (${res.statusCode}): ${_trim(res.body)}');
     }
 
+    // Decode bytes as UTF-8 explicitly: http.Response.body falls back to latin1
+    // when the server omits charset=utf-8, which mangles accented Spanish text.
+    final body = utf8.decode(res.bodyBytes, allowMalformed: true);
     final Object? decoded;
     try {
-      decoded = jsonDecode(res.body);
+      decoded = jsonDecode(body);
     } catch (_) {
       // Some servers return plain text/markdown directly.
-      if (res.body.trim().isEmpty) throw RemoteOcrException('Respuesta OCR vacía.');
-      return res.body;
+      if (body.trim().isEmpty) throw RemoteOcrException('Respuesta OCR vacía.');
+      return body;
     }
     return _extractText(decoded);
   }

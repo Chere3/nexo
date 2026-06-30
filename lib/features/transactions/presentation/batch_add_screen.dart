@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/util/ids.dart';
+import '../../../design_system/components/ds_card.dart';
+import '../../../design_system/components/ds_input.dart';
+import '../../../design_system/components/ds_screen_scaffold.dart';
+import '../../../design_system/components/ds_select.dart';
+import '../../../design_system/tokens/ds_spacing.dart';
 import '../../accounts/domain/accounts_provider.dart';
 import '../../ai/domain/ai_providers.dart';
 import '../../categories/domain/categories_provider.dart';
@@ -105,35 +110,33 @@ class _BatchAddScreenState extends ConsumerState<BatchAddScreen> {
     final categories = [for (final c in ref.watch(activeCategoriesProvider)) c.name];
     final accounts = [for (final a in ref.watch(activeAccountsProvider)) a.name];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Batch add'),
-        actions: [
-          TextButton.icon(
-            onPressed: _commit,
-            icon: const Icon(Icons.check_rounded),
-            label: Text('Guardar (${_rows.length})'),
-          ),
-        ],
-      ),
+    return DsScreenScaffold(
+      title: 'Batch add',
+      actions: [
+        TextButton.icon(
+          onPressed: _commit,
+          icon: const Icon(Icons.check_rounded),
+          label: Text('Guardar (${_rows.length})'),
+        ),
+      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => setState(_addRow),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Agregar fila'),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-        itemCount: _rows.length,
-        itemBuilder: (context, i) => _RowCard(
-          index: i,
-          row: _rows[i],
-          fields: fields,
-          categories: categories,
-          accounts: accounts,
-          onChanged: () => setState(() {}),
-          onDelete: _rows.length > 1 ? () => _removeRow(i) : null,
-        ),
-      ),
+      children: [
+        for (var i = 0; i < _rows.length; i++)
+          _RowCard(
+            index: i,
+            row: _rows[i],
+            fields: fields,
+            categories: categories,
+            accounts: accounts,
+            onChanged: () => setState(() {}),
+            onDelete: _rows.length > 1 ? () => _removeRow(i) : null,
+          ),
+        const SizedBox(height: DsSpacing.xxl),
+      ],
     );
   }
 }
@@ -180,32 +183,29 @@ class _RowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text('Movimiento ${index + 1}',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const Spacer(),
-                if (onDelete != null)
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: onDelete,
-                  ),
-              ],
-            ),
-            for (final f in fields) ...[
-              _field(context, f),
-              const SizedBox(height: 8),
+    return DsCard(
+      margin: const EdgeInsets.only(bottom: DsSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Movimiento ${index + 1}',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              if (onDelete != null)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDelete,
+                ),
             ],
+          ),
+          for (final f in fields) ...[
+            _field(context, f),
+            const SizedBox(height: DsSpacing.xs),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -225,15 +225,17 @@ class _RowCard extends StatelessWidget {
           },
         );
       case CaptureField.amount:
-        return TextField(
+        return DsInput(
           controller: row.amount,
+          label: 'Monto',
+          icon: Icons.attach_money_rounded,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Monto', prefixIcon: Icon(Icons.attach_money_rounded), isDense: true),
         );
       case CaptureField.title:
-        return TextField(
+        return DsInput(
           controller: row.title,
-          decoration: const InputDecoration(labelText: 'Concepto', prefixIcon: Icon(Icons.edit_note_rounded), isDense: true),
+          label: 'Concepto',
+          icon: Icons.edit_note_rounded,
         );
       case CaptureField.category:
         final names = {if (row.category != null) row.category!, ...categories}.toList();
@@ -261,14 +263,14 @@ class _RowCard extends StatelessWidget {
         );
       case CaptureField.currency:
         final names = {row.currency, ...supportedCurrencies}.toList();
-        return DropdownButtonFormField<String>(
-          initialValue: row.currency,
+        return DsSelect<String>(
+          label: 'Moneda',
+          value: row.currency,
           items: [for (final c in names) DropdownMenuItem(value: c, child: Text(c))],
           onChanged: (v) {
             row.currency = v ?? row.currency;
             onChanged();
           },
-          decoration: const InputDecoration(labelText: 'Moneda', isDense: true),
         );
       case CaptureField.date:
         return OutlinedButton.icon(
@@ -288,20 +290,24 @@ class _RowCard extends StatelessWidget {
           label: Text(DateFormat.yMMMd('es_MX').format(row.date)),
         );
       case CaptureField.note:
-        return TextField(
+        return DsInput(
           controller: row.note,
-          decoration: const InputDecoration(labelText: 'Nota', isDense: true),
+          label: 'Nota',
         );
       case CaptureField.paid:
-        return SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: const Text('Pagado'),
-          value: row.paid,
-          onChanged: (v) {
-            row.paid = v;
-            onChanged();
-          },
+        return Row(
+          children: [
+            Expanded(
+              child: Text('Pagado', style: Theme.of(context).textTheme.bodyLarge),
+            ),
+            Switch(
+              value: row.paid,
+              onChanged: (v) {
+                row.paid = v;
+                onChanged();
+              },
+            ),
+          ],
         );
     }
   }

@@ -85,20 +85,24 @@ class AiServices {
   };
 
   ParsedTransaction _fromInput(Map<String, dynamic> input) {
-    final amount = (input['amount'] as num?)?.toDouble() ?? 0;
-    final type = (input['type'] as String?) == 'income' ? EntryType.income : EntryType.expense;
+    final a = input['amount'];
+    final amount = a is num
+        ? a.toDouble()
+        : double.tryParse(a?.toString().replaceAll(RegExp(r'[^0-9.\-]'), '') ?? '') ?? 0;
+    final type = input['type']?.toString() == 'income' ? EntryType.income : EntryType.expense;
     DateTime? date;
-    final dIso = input['date_iso'] as String?;
+    final dIso = input['date_iso']?.toString();
     if (dIso != null) date = DateTime.tryParse(dIso);
+    final title = input['title']?.toString().trim();
     return ParsedTransaction(
       amount: amount.abs(),
       type: type,
-      title: (input['title'] as String?)?.trim().isNotEmpty == true ? input['title'] as String : 'Movimiento',
-      categoryName: (input['category'] as String?)?.trim(),
-      accountName: (input['account'] as String?)?.trim(),
-      currency: (input['currency'] as String?) ?? 'MXN',
+      title: title != null && title.isNotEmpty ? title : 'Movimiento',
+      categoryName: input['category']?.toString().trim(),
+      accountName: input['account']?.toString().trim(),
+      currency: input['currency']?.toString() ?? 'MXN',
       date: date,
-      note: (input['note'] as String?)?.trim(),
+      note: input['note']?.toString().trim(),
     );
   }
 
@@ -106,9 +110,12 @@ class AiServices {
     final raw = (input['transactions'] as List?) ?? const [];
     final out = <ParsedTransaction>[];
     for (final item in raw) {
-      if (item is Map) {
+      if (item is! Map) continue;
+      try {
         final p = _fromInput(item.cast<String, dynamic>());
         if (p.amount > 0) out.add(p);
+      } catch (_) {
+        // Skip a single malformed row; keep the other parsed movements.
       }
     }
     return out;
