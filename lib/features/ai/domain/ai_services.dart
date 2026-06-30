@@ -37,6 +37,46 @@ class CaptureSuggestion {
   final String? category;
 }
 
+/// A compact movement handed to the reconciler AI pass (either a freshly
+/// extracted draft or an existing movement). Indices, not ids, cross the wire
+/// so the model can't mangle long ids.
+class ReconcileItem {
+  ReconcileItem({
+    required this.title,
+    required this.amount,
+    required this.type,
+    required this.dateIso,
+  });
+  final String title;
+  final double amount;
+  final EntryType type;
+  final String dateIso;
+
+  String _line(int index, String tag) =>
+      '[$tag$index] ${type == EntryType.income ? 'ingreso' : 'gasto'} '
+      '${amount.toStringAsFixed(2)} $dateIso "${title.replaceAll('"', "'")}"';
+}
+
+/// What the AI decided for one draft against the unmatched existing movements.
+enum ReconcileVerdict { isNew, update, same }
+
+class ReconcileMatch {
+  ReconcileMatch({
+    required this.draftIndex,
+    required this.verdict,
+    this.existingIndex,
+    this.confidence,
+  });
+
+  final int draftIndex;
+  final ReconcileVerdict verdict;
+
+  /// Index into the `existing` list passed to [AiServices.reconcileStatement];
+  /// null for [ReconcileVerdict.isNew].
+  final int? existingIndex;
+  final double? confidence;
+}
+
 class AiServices {
   AiServices(this.client, {this.persona = ''});
   final LlmClient client;
@@ -335,6 +375,102 @@ class AiServices {
       }
     } catch (_) {/* sin Gemma instalado → sin fallback */}
     return null;
+  }
+
+  static const _reconcileSchema = <String, dynamic>{
+    'type': 'object',
+    'properties': {
+      'matches': {
+        'type': 'array',
+        'description': 'Un veredicto por cada movimiento NUEVO (draft).',
+        'items': {
+          'type': 'object',
+          'properties': {
+            'draft_index': {'type': 'integer', 'description': 'Índice N# del movimiento nuevo'},
+            'verdict': {
+              'type': 'string',
+              'enum': ['new', 'update', 'same'],
+              'description': 'new=no existe; update=es el mismo pero cambió; same=idéntico',
+            },
+            'existing_index': {
+              'type': 'integer',
+              'description': 'Índice E# del existente que empata, o -1 si verdict=new',
+            },
+            'confidence': {'type': 'number', 'description': 'Confianza 0..1'},
+          },
+          'required': ['draft_index', 'verdict'],
+        },
+      },
+    },
+    'required': ['matches'],
+  };
+
+  /// Fuzzy-matches freshly extracted [drafts] against the [existing] movements
+  /// already in the app, so the same real movement is recognised even when the
+  /// title/date/amount differ slightly. Indices (N#, E#) cross the wire, never
+  /// ids. Returns one verdict per draft; throws [AiException] on provider error
+  /// (the caller falls back to the deterministic result).
+  Future<List<ReconcileMatch>> reconcileStatement({
+    required List<ReconcileItem> drafts,
+    required List<ReconcileItem> existing,
+  }) async {
+    if (drafts.isEmpty) return const [];
+    final buf = StringBuffer()
+      ..writeln('MOVIMIENTOS NUEVOS (del documento):');
+    for (var i = 0; i < drafts.length; i++) {
+      buf.writeln(drafts[i]._line(i, 'N'));
+    }
+    buf.writeln('\nMOVIMIENTOS EXISTENTES (ya en la app):');
+    if (existing.isEmpty) {
+      buf.writeln('(ninguno)');
+    } else {
+      for (var i = 0; i < existing.length; i++) {
+        buf.writeln(existing[i]._line(i, 'E'));
+      }
+    }
+
+    final input = await client.extractStructured(
+      system: _sys(
+          'Concilias movimientos financieros. Tienes movimientos NUEVOS (N#) de un documento y '
+          'movimientos EXISTENTES (E#) ya registrados. Para CADA movimiento nuevo decide:\n'
+          '- "same": ya existe idéntico (mismo movimiento real, sin cambios) → da su existing_index.\n'
+          '- "update": es el MISMO movimiento real pero algún dato cambió (título, fecha cercana o '
+          'monto) → da su existing_index.\n'
+          '- "new": no corresponde a ningún existente.\n'
+          'Empareja con criterio: montos iguales o casi, fechas a pocos días, comercios equivalentes '
+          'aunque el texto difiera. Cada existente se empareja con UN solo nuevo como máximo. No '
+          'inventes índices.'),
+      userText: buf.toString(),
+      toolName: 'conciliar_movimientos',
+      toolDescription: 'Empareja cada movimiento nuevo con un existente o lo marca como nuevo.',
+      inputSchema: _reconcileSchema,
+      maxTokens: 4096,
+    );
+
+    final raw = (input['matches'] as List?) ?? const [];
+    final out = <ReconcileMatch>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final m = item.cast<String, dynamic>();
+      final di = (m['draft_index'] as num?)?.toInt();
+      if (di == null || di < 0 || di >= drafts.length) continue;
+      final verdict = switch (m['verdict']?.toString()) {
+        'same' => ReconcileVerdict.same,
+        'update' => ReconcileVerdict.update,
+        _ => ReconcileVerdict.isNew,
+      };
+      var ei = (m['existing_index'] as num?)?.toInt();
+      if (ei != null && (ei < 0 || ei >= existing.length)) ei = null;
+      // A match verdict without a valid existing index is meaningless → treat as new.
+      final v = (verdict != ReconcileVerdict.isNew && ei == null) ? ReconcileVerdict.isNew : verdict;
+      out.add(ReconcileMatch(
+        draftIndex: di,
+        verdict: v,
+        existingIndex: v == ReconcileVerdict.isNew ? null : ei,
+        confidence: (m['confidence'] as num?)?.toDouble(),
+      ));
+    }
+    return out;
   }
 
   /// Generates short, actionable spending insights from a textual summary.

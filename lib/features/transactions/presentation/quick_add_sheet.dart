@@ -27,10 +27,18 @@ import '../domain/transactions_provider.dart';
 
 /// Parses a user-typed amount tolerating "1,234.50" / "1.234,50" / "1234,5".
 double? parseAmountInput(String input) {
-  final raw = input.trim().replaceAll(' ', '');
+  var raw = input.trim().replaceAll(' ', '');
   if (raw.isEmpty) return null;
-  if (raw.contains(',') && raw.contains('.')) return double.tryParse(raw.replaceAll(',', ''));
-  if (raw.contains(',')) return double.tryParse(raw.replaceAll(',', '.'));
+  final lastComma = raw.lastIndexOf(',');
+  final lastDot = raw.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Both separators present: the one that appears LAST is the decimal mark.
+    raw = lastComma > lastDot
+        ? raw.replaceAll('.', '').replaceAll(',', '.') // 1.234,50 → 1234.50
+        : raw.replaceAll(',', ''); //                     1,234.50 → 1234.50
+  } else if (lastComma >= 0) {
+    raw = raw.replaceAll(',', '.'); // 1234,5 → 1234.5
+  }
   return double.tryParse(raw);
 }
 

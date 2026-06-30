@@ -10,6 +10,7 @@ class DocumentsRepository {
   static const _columns =
       'id, title, source_type, file_name, stored_path, mime_type, size_bytes, '
       'page_count, status, tx_count, imported_count, engine, error, note, '
+      'is_source_of_truth, scope_account_id, scope_from, scope_to, '
       'created_at, updated_at';
 
   Database get _db => LocalStore.db;
@@ -17,7 +18,7 @@ class DocumentsRepository {
   void insert(NexoDocument d) {
     _db.execute(
       'INSERT OR REPLACE INTO documents ($_columns) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         d.id,
         d.title,
@@ -33,6 +34,10 @@ class DocumentsRepository {
         d.engine,
         d.error,
         d.note,
+        d.isSourceOfTruth ? 1 : 0,
+        d.scopeAccountId,
+        d.scopeFrom?.toIso8601String(),
+        d.scopeTo?.toIso8601String(),
         d.createdAt.toIso8601String(),
         d.updatedAt.toIso8601String(),
       ],
@@ -63,6 +68,29 @@ class DocumentsRepository {
       'page_count = COALESCE(?, page_count), '
       'updated_at = ? WHERE id = ?',
       [txCount, importedCount, pageCount, DateTime.now().toIso8601String(), id],
+    );
+  }
+
+  /// Flags (or clears) a document as the reconciliation source of truth and
+  /// records the scope (account + date range) the delete sweep is bounded to.
+  void setSourceOfTruth(
+    String id,
+    bool enabled, {
+    String? accountId,
+    DateTime? from,
+    DateTime? to,
+  }) {
+    _db.execute(
+      'UPDATE documents SET is_source_of_truth = ?, scope_account_id = ?, '
+      'scope_from = ?, scope_to = ?, updated_at = ? WHERE id = ?',
+      [
+        enabled ? 1 : 0,
+        accountId,
+        from?.toIso8601String(),
+        to?.toIso8601String(),
+        DateTime.now().toIso8601String(),
+        id,
+      ],
     );
   }
 

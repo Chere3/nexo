@@ -11,6 +11,7 @@ class DocumentTransactionsRepository {
   static const _columns =
       'id, document_id, title, amount, category, category_id, date, type, '
       'account, account_id, currency, note, confidence, selected, status, '
+      'reconcile_action, match_tx_id, match_confidence, '
       'transaction_id, dedupe_hash, source_page, source_line, created_at';
 
   Database get _db => LocalStore.db;
@@ -31,6 +32,9 @@ class DocumentTransactionsRepository {
         d.confidence,
         d.selected ? 1 : 0,
         d.status.dbValue,
+        d.reconcileAction?.dbValue,
+        d.matchTxId,
+        d.matchConfidence,
         d.transactionId,
         d.dedupeHash,
         d.sourcePage,
@@ -38,7 +42,8 @@ class DocumentTransactionsRepository {
         d.createdAt.toIso8601String(),
       ];
 
-  static const _placeholders = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+  static const _placeholders =
+      '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
   /// Bulk insert of freshly extracted drafts, wrapped in one transaction.
   void insertBatch(List<DocumentTransaction> rows) {
@@ -118,6 +123,17 @@ class DocumentTransactionsRepository {
       _db.execute('ROLLBACK');
       rethrow;
     }
+  }
+
+  /// Removes the synthetic, not-yet-applied `delete`-candidate rows for a
+  /// document so a re-run of the reconciler can regenerate them from scratch.
+  /// Applied candidates (status `imported`) are kept as history.
+  void clearPendingDeleteCandidates(String documentId) {
+    _db.execute(
+      "DELETE FROM document_transactions WHERE document_id = ? "
+      "AND reconcile_action = 'delete' AND status = 'staged'",
+      [documentId],
+    );
   }
 
   /// True if a staged/imported draft (in any document) or a real transaction

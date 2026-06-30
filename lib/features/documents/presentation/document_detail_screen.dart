@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../accounts/domain/accounts_provider.dart';
+import '../../ai/domain/ai_providers.dart';
 import '../../capture/domain/merchant_memory.dart';
 import '../../categories/domain/categories_provider.dart';
 import '../../transactions/domain/currency.dart';
 import '../../transactions/domain/transaction.dart';
 import '../../transactions/domain/transactions_provider.dart';
+import '../../transactions/presentation/quick_add_sheet.dart' show parseAmountInput;
 import '../domain/document.dart';
+import '../domain/document_reconciler.dart';
 import '../domain/document_transaction.dart';
 import '../domain/documents_provider.dart';
 
@@ -25,6 +28,8 @@ class DocumentDetailScreen extends ConsumerStatefulWidget {
 
 class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
   bool _busy = false;
+  bool _aiBusy = false;
+  bool _autoReconcileScheduled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -45,15 +50,44 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
       );
     }
 
-    final staged = drafts.where((d) => !d.isImported).toList();
-    final imported = drafts.where((d) => d.isImported).toList();
-    final selected = staged.where((d) => d.selected).toList();
+    // Auto-run the deterministic reconcile once, when freshly-extracted drafts
+    // still have no action, so the screen opens already grouped.
+    if (doc.status != DocumentStatus.parsing && !_autoReconcileScheduled) {
+      final needs = drafts.any((d) =>
+          d.status == DocTxStatus.staged && !d.isDeleteCandidate && d.reconcileAction == null);
+      if (needs) {
+        _autoReconcileScheduled = true;
+        final captured = doc;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ref.read(documentReconcilerProvider).reconcile(captured);
+        });
+      }
+    }
+
+    final existingById = {for (final e in ref.watch(transactionsProvider)) e.id: e};
+
+    final applied = drafts.where((d) => d.isImported).toList();
+    final pending =
+        drafts.where((d) => !d.isImported && d.status != DocTxStatus.discarded).toList();
+    final groups = <ReconcileAction, List<DocumentTransaction>>{};
+    for (final d in pending) {
+      (groups[d.reconcileAction ?? ReconcileAction.add] ??= []).add(d);
+    }
+    // Applicable = selected pending rows whose action actually does something.
+    final selectedApplicable = pending
+        .where((d) =>
+            d.selected &&
+            (d.reconcileAction ?? ReconcileAction.add) != ReconcileAction.identical)
+        .toList();
+
+    final aiAvailable = ref.watch(aiServicesProvider) != null;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(doc.title, overflow: TextOverflow.ellipsis),
         actions: [
-          if (staged.isNotEmpty)
+          if (pending.isNotEmpty)
             PopupMenuButton<String>(
               onSelected: (v) {
                 final notifier = ref.read(documentTransactionsProvider(widget.documentId).notifier);
@@ -74,74 +108,220 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
               children: [
                 _HeaderCard(doc: doc),
                 const SizedBox(height: 12),
-                if (staged.isEmpty && imported.isEmpty)
+                _ReconcileControls(
+                  doc: doc,
+                  aiAvailable: aiAvailable,
+                  aiBusy: _aiBusy,
+                  onToggleSourceOfTruth: (v) => _toggleSourceOfTruth(doc!, v),
+                  onAiReconcile: () => _runAiReconcile(doc!),
+                ),
+                const SizedBox(height: 12),
+                if (pending.isEmpty && applied.isEmpty)
                   _EmptyExtraction(doc: doc)
                 else ...[
-                  if (staged.isNotEmpty) ...[
-                    _SectionLabel(text: 'Por importar (${staged.length})'),
-                    ...staged.map((d) => _DraftTile(
+                  for (final entry in _orderedGroups(groups)) ...[
+                    _SectionLabel(text: '${_groupTitle(entry.key)} (${entry.value.length})'),
+                    ...entry.value.map((d) => _DraftTile(
                           draft: d,
+                          existing: d.matchTxId != null ? existingById[d.matchTxId] : null,
                           onToggle: () => ref
                               .read(documentTransactionsProvider(widget.documentId).notifier)
                               .setSelected(d.id, !d.selected),
-                          onEdit: () => _editDraft(d),
+                          onEdit: d.isDeleteCandidate ? null : () => _editDraft(d),
                         )),
+                    const SizedBox(height: 8),
                   ],
-                  if (imported.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _SectionLabel(text: 'Importados (${imported.length})'),
-                    ...imported.map((d) => _DraftTile(
-                          draft: d,
-                          onToggle: null,
-                          onEdit: null,
-                          onUndo: () => _undoImport(d),
-                        )),
+                  if (applied.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _SectionLabel(text: 'Aplicados (${applied.length})'),
+                    ...applied.map((d) {
+                      // Undo can only truly revert add (remove the created
+                      // movement) and delete (re-create it). An update
+                      // overwrote the original in place without capturing it, so
+                      // offer no misleading undo there.
+                      final a = d.reconcileAction ?? ReconcileAction.add;
+                      final canUndo =
+                          a == ReconcileAction.add || a == ReconcileAction.delete;
+                      return _DraftTile(
+                        draft: d,
+                        existing: d.matchTxId != null ? existingById[d.matchTxId] : null,
+                        onToggle: null,
+                        onEdit: null,
+                        onUndo: canUndo ? () => _undo(d) : null,
+                      );
+                    }),
                   ],
                 ],
               ],
             ),
-      bottomNavigationBar: staged.isEmpty
+      bottomNavigationBar: pending.isEmpty
           ? null
           : _ActionBar(
-              selectedCount: selected.length,
+              selectedCount: selectedApplicable.length,
               busy: _busy,
-              onImport: selected.isEmpty ? null : () => _importSelected(selected),
-              onDelete: selected.isEmpty ? null : () => _deleteSelected(selected),
-              onBulkEdit: selected.isEmpty ? null : () => _bulkEdit(selected),
+              onImport: selectedApplicable.isEmpty ? null : () => _applyReconciliation(selectedApplicable),
+              onDelete: selectedApplicable.isEmpty ? null : () => _discardSelected(selectedApplicable),
+              onBulkEdit: selectedApplicable.isEmpty ? null : () => _bulkEdit(selectedApplicable),
             ),
     );
   }
 
   // ---- actions --------------------------------------------------------------
 
-  Future<void> _importSelected(List<DocumentTransaction> selected) async {
+  /// Applies the selected rows per their reconcile action: `add` creates a new
+  /// movement, `update` overwrites the matched existing one (preserving its
+  /// kind/goal/paid/createdAt), `delete` removes the matched existing one.
+  /// Destructive actions (update/delete) require an explicit confirmation.
+  Future<void> _applyReconciliation(List<DocumentTransaction> selected) async {
+    final adds = <DocumentTransaction>[];
+    final updates = <DocumentTransaction>[];
+    final deletes = <DocumentTransaction>[];
+    for (final d in selected) {
+      switch (d.reconcileAction ?? ReconcileAction.add) {
+        case ReconcileAction.add:
+          adds.add(d);
+        case ReconcileAction.update:
+          updates.add(d);
+        case ReconcileAction.delete:
+          deletes.add(d);
+        case ReconcileAction.identical:
+          break; // nothing to apply
+      }
+    }
+
+    if (updates.isNotEmpty || deletes.isNotEmpty) {
+      final lines = <String>[
+        if (adds.isNotEmpty) '• Agregar ${adds.length}',
+        if (updates.isNotEmpty) '• Actualizar ${updates.length} (sobrescribe los existentes)',
+        if (deletes.isNotEmpty) '• Borrar ${deletes.length} de tus movimientos',
+      ];
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('Aplicar conciliación'),
+          content: Text('${lines.join('\n')}\n\nEsta acción modifica tus movimientos reales.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Aplicar')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
     setState(() => _busy = true);
     try {
-      final entries = <FinanceEntry>[];
-      final pairs = <(String draftId, String txId)>[];
-      for (final d in selected) {
+      final txNotifier = ref.read(transactionsProvider.notifier);
+      final currentTx = ref.read(transactionsProvider);
+      final existingById = {for (final e in currentTx) e.id: e};
+      // Hash → committed movement, to drop an `add` that already exists (e.g. an
+      // overlapping statement imported since this document was reconciled).
+      final committedByHash = <String, String>{};
+      for (final e in currentTx) {
+        committedByHash.putIfAbsent(
+          DocumentTransaction.computeDedupeHash(
+              date: e.date, amount: e.amount, title: e.title, type: e.type),
+          () => e.id,
+        );
+      }
+      final mem = ref.read(merchantMemoryProvider);
+
+      final entries = <FinanceEntry>[]; // new + updated upserts (idempotent by id)
+      final removeIds = <String>[];
+      final addUpdatePairs = <(String draftId, String txId)>[];
+      final deletePairs = <(String draftId, String txId)>[];
+      final dupResolved = <DocumentTransaction>[]; // adds that already exist
+      var addedCount = 0;
+
+      for (final d in adds) {
+        final hash = d.dedupeHash ??
+            DocumentTransaction.computeDedupeHash(
+                date: d.date, amount: d.amount, title: d.title, type: d.type);
+        final existingId = committedByHash[hash];
+        if (existingId != null) {
+          // Already a real movement → don't create a duplicate; resolve the
+          // draft to that movement as "identical" (undo-safe).
+          dupResolved.add(d.copyWith(
+            reconcileAction: ReconcileAction.identical,
+            matchTxId: existingId,
+            status: DocTxStatus.duplicate,
+            selected: false,
+          ));
+          continue;
+        }
         final entry = d.toFinanceEntry();
         entries.add(entry);
-        pairs.add((d.id, entry.id));
-      }
-      // Both writes are transactional; the staging update reloads once.
-      ref.read(transactionsProvider.notifier).addBatch(entries);
-      ref.read(documentTransactionsProvider(widget.documentId).notifier).markImportedBatch(pairs);
-
-      final mem = ref.read(merchantMemoryProvider);
-      for (final d in selected) {
+        addUpdatePairs.add((d.id, entry.id));
+        addedCount++;
         mem.learn(d.title, categoryId: d.categoryId, categoryName: d.category);
       }
+      for (final d in updates) {
+        final ex = d.matchTxId != null ? existingById[d.matchTxId] : null;
+        if (ex == null) {
+          // The matched movement vanished → create it fresh instead.
+          final entry = d.toFinanceEntry();
+          entries.add(entry);
+          addUpdatePairs.add((d.id, entry.id));
+        } else {
+          // Overwrite only the statement-known fields; keep kind/goal/paid/etc.
+          // Only change account/category when the draft resolved an id, so the
+          // visible name never desyncs from the id (which drives balances).
+          final keepAccount = d.accountId == null || d.accountId!.isEmpty;
+          final keepCategory = d.categoryId == null || d.categoryId!.isEmpty;
+          final updated = ex.copyWith(
+            title: d.title.trim().isEmpty ? d.category : d.title.trim(),
+            amount: d.amount,
+            category: keepCategory ? ex.category : d.category,
+            categoryId: keepCategory ? ex.categoryId : d.categoryId,
+            date: d.date,
+            type: d.type,
+            account: keepAccount ? ex.account : d.account,
+            accountId: keepAccount ? ex.accountId : d.accountId,
+            currency: d.currency,
+            note: d.note,
+            exchangeRate: effectiveMxnRate(d.currency),
+          );
+          entries.add(updated);
+          addUpdatePairs.add((d.id, updated.id));
+        }
+        mem.learn(d.title, categoryId: d.categoryId, categoryName: d.category);
+      }
+      for (final d in deletes) {
+        final txId = d.matchTxId;
+        if (txId != null) {
+          removeIds.add(txId);
+          deletePairs.add((d.id, txId));
+        }
+      }
+
+      final docNotifier = ref.read(documentTransactionsProvider(widget.documentId).notifier);
+      // Mark add/update drafts imported right after their write (before the
+      // destructive remove), so a failure mid-way can't duplicate them on retry.
+      if (entries.isNotEmpty) txNotifier.addBatch(entries);
+      if (addUpdatePairs.isNotEmpty) docNotifier.markImportedBatch(addUpdatePairs);
+      if (removeIds.isNotEmpty) txNotifier.removeBatch(removeIds);
+      if (deletePairs.isNotEmpty) docNotifier.markImportedBatch(deletePairs);
+      if (dupResolved.isNotEmpty) {
+        ref.read(documentTransactionsRepositoryProvider).insertBatch(dupResolved);
+        docNotifier.load();
+      }
+
       _refreshDocCounts();
       if (mounted) {
+        final parts = <String>[
+          if (addedCount > 0) '$addedCount nuevos',
+          if (updates.isNotEmpty) '${updates.length} actualizados',
+          if (deletes.isNotEmpty) '${deletes.length} borrados',
+          if (dupResolved.isNotEmpty) '${dupResolved.length} ya existían',
+        ];
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Importados ${selected.length} movimientos')),
+          SnackBar(content: Text(parts.isEmpty ? 'Sin cambios' : 'Aplicado: ${parts.join(' · ')}')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al importar: $e')),
+          SnackBar(content: Text('Error al aplicar: $e')),
         );
       }
     } finally {
@@ -149,15 +329,119 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
     }
   }
 
-  Future<void> _deleteSelected(List<DocumentTransaction> selected) async {
+  /// Enables/disables source-of-truth mode for the document, persisting the
+  /// inferred scope (account + date range) and re-running the reconcile so the
+  /// delete sweep regenerates (or clears).
+  Future<void> _toggleSourceOfTruth(NexoDocument doc, bool enabled) async {
+    final reconciler = ref.read(documentReconcilerProvider);
+    final docsNotifier = ref.read(documentsProvider.notifier);
+
+    if (!enabled) {
+      docsNotifier.setSourceOfTruth(doc.id, false);
+      final updated = docsNotifier.byId(doc.id);
+      if (updated != null) reconciler.reconcile(updated); // clears delete candidates
+      return;
+    }
+
+    final drafts = ref.read(documentTransactionsProvider(widget.documentId));
+    final scope = DocumentReconciler.inferScope(drafts);
+    if (scope.from == null || scope.to == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay movimientos para definir el alcance.')),
+        );
+      }
+      return;
+    }
+    var accountId = scope.singleAccountId;
+    if (accountId == null) {
+      accountId = await _pickScopeAccount();
+      if (accountId == null) return; // cancelled
+    }
+
+    // Bound the range to what the document says about THIS account when its
+    // drafts resolved one (multi-account docs). When no draft resolved an
+    // account (common for OCR/AI statements with dates but no account id), the
+    // user just picked the account to attribute them to, so fall back to the
+    // document's full date range — both are non-null here (checked above).
+    final accountRange = DocumentReconciler.scopeRangeForAccount(drafts, accountId);
+    final from = accountRange.from ?? scope.from;
+    final to = accountRange.to ?? scope.to;
+
+    docsNotifier.setSourceOfTruth(doc.id, true, accountId: accountId, from: from, to: to);
+    final updated = docsNotifier.byId(doc.id);
+    if (updated != null) reconciler.reconcile(updated);
+    if (mounted) {
+      final n = ref
+          .read(documentTransactionsProvider(widget.documentId))
+          .where((d) => d.isDeleteCandidate)
+          .length;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(n == 0
+              ? 'Sin movimientos a borrar en el alcance.'
+              : '$n movimiento(s) marcados para borrar.'),
+        ),
+      );
+    }
+  }
+
+  /// Asks the user which account the document's scope covers when its drafts map
+  /// to more than one (or none).
+  Future<String?> _pickScopeAccount() async {
+    final accounts = ref.read(activeAccountsProvider);
+    if (accounts.isEmpty) return null;
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => SimpleDialog(
+        title: const Text('¿De qué cuenta es este documento?'),
+        children: [
+          for (final a in accounts)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogCtx, a.id),
+              child: Text(a.name),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runAiReconcile(NexoDocument doc) async {
+    setState(() => _aiBusy = true);
+    try {
+      final summary = await ref.read(documentReconcilerProvider).reconcileWithAi(doc);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Conciliado: ${summary.add} nuevos · '
+                '${summary.update} a actualizar · ${summary.delete} a borrar'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al conciliar: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
+  }
+
+  /// Removes the selected rows FROM THE DOCUMENT only (discards drafts / drops a
+  /// delete-candidate so the existing movement is kept). Never touches real
+  /// movements — that is what [_applyReconciliation] does.
+  Future<void> _discardSelected(List<DocumentTransaction> selected) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Eliminar borradores'),
-        content: Text('¿Eliminar ${selected.length} movimientos sin importar?'),
+        title: const Text('Quitar del documento'),
+        content: Text('¿Quitar ${selected.length} movimientos de la lista? '
+            'No se modifican tus movimientos reales.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Eliminar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Quitar')),
         ],
       ),
     );
@@ -180,7 +464,9 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
     );
     if (result == null) return;
     final notifier = ref.read(documentTransactionsProvider(widget.documentId).notifier);
-    for (final d in selected) {
+    // Bulk edit only makes sense for the document's own drafts, not for
+    // delete-candidate rows (which mirror an existing movement).
+    for (final d in selected.where((d) => !d.isDeleteCandidate)) {
       notifier.update(d.copyWith(
         category: result.categoryName,
         categoryId: result.categoryId,
@@ -191,14 +477,26 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Actualizados ${selected.length} movimientos')),
+        SnackBar(content: Text('Actualizados ${selected.where((d) => !d.isDeleteCandidate).length} movimientos')),
       );
     }
   }
 
-  Future<void> _undoImport(DocumentTransaction d) async {
-    final txId = d.transactionId;
-    if (txId != null) ref.read(transactionsProvider.notifier).remove(txId);
+  /// Reverts an applied row. `add` removes the created movement; `delete`
+  /// re-creates the removed one (best-effort; transfers were never swept).
+  /// `update` overwrote the original in place, so it can only be re-staged.
+  Future<void> _undo(DocumentTransaction d) async {
+    final txNotifier = ref.read(transactionsProvider.notifier);
+    switch (d.reconcileAction ?? ReconcileAction.add) {
+      case ReconcileAction.add:
+        final txId = d.transactionId;
+        if (txId != null) txNotifier.remove(txId);
+      case ReconcileAction.delete:
+        txNotifier.add(d.toFinanceEntry().copyWith(id: d.matchTxId));
+      case ReconcileAction.update:
+      case ReconcileAction.identical:
+        break; // prior values weren't captured; just re-stage below
+    }
     ref.read(documentTransactionsProvider(widget.documentId).notifier).setStatus(d.id, DocTxStatus.staged);
     _refreshDocCounts();
   }
@@ -222,9 +520,13 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
   }
 
   /// Recomputes the document's tx/imported counts + status from its drafts.
+  /// Delete-candidate rows are synthetic (they mirror existing movements, not
+  /// extracted ones) so they don't count toward the document's totals.
   void _refreshDocCounts() {
     final drafts = ref.read(documentTransactionsProvider(widget.documentId));
-    final active = drafts.where((d) => d.status != DocTxStatus.discarded).toList();
+    final active = drafts
+        .where((d) => d.status != DocTxStatus.discarded && !d.isDeleteCandidate)
+        .toList();
     final importedCount = active.where((d) => d.isImported).length;
     final repo = ref.read(documentsRepositoryProvider);
     repo.setCounts(widget.documentId, txCount: active.length, importedCount: importedCount);
@@ -362,12 +664,17 @@ class _EmptyExtraction extends StatelessWidget {
 class _DraftTile extends StatelessWidget {
   const _DraftTile({
     required this.draft,
+    this.existing,
     this.onToggle,
     this.onEdit,
     this.onUndo,
   });
 
   final DocumentTransaction draft;
+
+  /// The matched existing movement, for showing the before→after on `update`
+  /// and the target on `delete`.
+  final FinanceEntry? existing;
   final VoidCallback? onToggle;
   final VoidCallback? onEdit;
   final VoidCallback? onUndo;
@@ -376,14 +683,17 @@ class _DraftTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isExpense = draft.type == EntryType.expense;
-    final isDuplicate = draft.status == DocTxStatus.duplicate;
+    final action = draft.reconcileAction ?? ReconcileAction.add;
+    final accent = _actionColor(action, scheme);
+    final amountColor =
+        action == ReconcileAction.delete ? scheme.error : (isExpense ? scheme.error : scheme.primary);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         leading: onToggle == null
-            ? Icon(Icons.check_circle_rounded, color: scheme.primary)
+            ? Icon(_actionIcon(action), color: accent)
             : Checkbox(value: draft.selected, onChanged: (_) => onToggle!()),
         title: Text(draft.title,
             maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -391,12 +701,21 @@ class _DraftTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${draft.category} · ${draft.account} · ${DateFormat.yMMMd('es_MX').format(draft.date)}'),
-            if (isDuplicate)
+            if (action == ReconcileAction.update && existing != null)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Text('Posible duplicado',
-                    style: TextStyle(color: scheme.tertiary, fontSize: 12, fontWeight: FontWeight.w700)),
+                child: Text(
+                  'Antes: ${existing!.title} · '
+                  '${formatMoney(existing!.amount, currency: existing!.currency)} · '
+                  '${DateFormat.yMMMd('es_MX').format(existing!.date)}',
+                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                ),
               ),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(_actionLabel(action),
+                  style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
         trailing: Row(
@@ -404,12 +723,12 @@ class _DraftTile extends StatelessWidget {
           children: [
             Text(
               '${isExpense ? '-' : '+'}${formatMoney(draft.amount, currency: draft.currency)}',
-              style: TextStyle(fontWeight: FontWeight.w900, color: isExpense ? scheme.error : scheme.primary),
+              style: TextStyle(fontWeight: FontWeight.w900, color: amountColor),
             ),
             if (onEdit != null)
               IconButton(icon: const Icon(Icons.edit_outlined), onPressed: onEdit, tooltip: 'Editar')
             else if (onUndo != null)
-              IconButton(icon: const Icon(Icons.undo_rounded), onPressed: onUndo, tooltip: 'Deshacer importación'),
+              IconButton(icon: const Icon(Icons.undo_rounded), onPressed: onUndo, tooltip: 'Deshacer'),
           ],
         ),
         onTap: onEdit,
@@ -445,8 +764,8 @@ class _ActionBar extends StatelessWidget {
               children: [
                 IconButton.filledTonal(
                   onPressed: busy ? null : onDelete,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  tooltip: 'Eliminar seleccionados',
+                  icon: const Icon(Icons.playlist_remove_rounded),
+                  tooltip: 'Quitar del documento',
                 ),
                 const SizedBox(width: 8),
                 IconButton.filledTonal(
@@ -461,7 +780,7 @@ class _ActionBar extends StatelessWidget {
                     icon: busy
                         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.download_done_rounded),
-                    label: Text('Importar seleccionados ($selectedCount)'),
+                    label: Text('Aplicar ($selectedCount)'),
                   ),
                 ),
               ],
@@ -481,6 +800,129 @@ String? _idForName(List<_NamedRef> list, String? name) {
     if (e.name == name) return e.id;
   }
   return null;
+}
+
+/// Orders the reconcile groups for display: actionable first, info last.
+List<MapEntry<ReconcileAction, List<DocumentTransaction>>> _orderedGroups(
+    Map<ReconcileAction, List<DocumentTransaction>> groups) {
+  const order = [
+    ReconcileAction.add,
+    ReconcileAction.update,
+    ReconcileAction.delete,
+    ReconcileAction.identical,
+  ];
+  return [
+    for (final a in order)
+      if ((groups[a]?.isNotEmpty ?? false)) MapEntry(a, groups[a]!),
+  ];
+}
+
+String _groupTitle(ReconcileAction a) => switch (a) {
+      ReconcileAction.add => 'Nuevos',
+      ReconcileAction.update => 'Actualizar',
+      ReconcileAction.delete => 'Borrar de la app',
+      ReconcileAction.identical => 'Sin cambios',
+    };
+
+String _actionLabel(ReconcileAction a) => switch (a) {
+      ReconcileAction.add => 'Nuevo movimiento',
+      ReconcileAction.update => 'Actualiza un movimiento existente',
+      ReconcileAction.delete => 'En la app, no en el documento → borrar',
+      ReconcileAction.identical => 'Ya existe (sin cambios)',
+    };
+
+IconData _actionIcon(ReconcileAction a) => switch (a) {
+      ReconcileAction.add => Icons.add_circle_rounded,
+      ReconcileAction.update => Icons.sync_rounded,
+      ReconcileAction.delete => Icons.delete_rounded,
+      ReconcileAction.identical => Icons.check_circle_rounded,
+    };
+
+Color _actionColor(ReconcileAction a, ColorScheme scheme) => switch (a) {
+      ReconcileAction.add => scheme.primary,
+      ReconcileAction.update => scheme.tertiary,
+      ReconcileAction.delete => scheme.error,
+      ReconcileAction.identical => scheme.onSurfaceVariant,
+    };
+
+/// Source-of-truth toggle + AI reconcile trigger, shown under the header.
+class _ReconcileControls extends ConsumerWidget {
+  const _ReconcileControls({
+    required this.doc,
+    required this.aiAvailable,
+    required this.aiBusy,
+    required this.onToggleSourceOfTruth,
+    required this.onAiReconcile,
+  });
+
+  final NexoDocument doc;
+  final bool aiAvailable;
+  final bool aiBusy;
+  final ValueChanged<bool> onToggleSourceOfTruth;
+  final VoidCallback onAiReconcile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final accounts = ref.watch(activeAccountsProvider);
+    String? accountName;
+    for (final a in accounts) {
+      if (a.id == doc.scopeAccountId) {
+        accountName = a.name;
+        break;
+      }
+    }
+    final hasRange = doc.scopeFrom != null && doc.scopeTo != null;
+    final scopeText = (doc.isSourceOfTruth && accountName != null && hasRange)
+        ? 'Alcance: $accountName · '
+            '${DateFormat.yMMMd('es_MX').format(doc.scopeFrom!)} – '
+            '${DateFormat.yMMMd('es_MX').format(doc.scopeTo!)}'
+        : 'Si lo activas, los movimientos de esa cuenta y periodo que no estén '
+            'en el documento se proponen para borrar.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        child: Column(
+          children: [
+            SwitchListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              value: doc.isSourceOfTruth,
+              onChanged: onToggleSourceOfTruth,
+              title: const Text('Fuente de la verdad',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text(scopeText, style: theme.textTheme.bodySmall),
+              secondary: Icon(Icons.verified_rounded,
+                  color: doc.isSourceOfTruth ? theme.colorScheme.primary : null),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      aiAvailable
+                          ? 'Empareja movimientos parecidos con IA.'
+                          : 'Activa la IA en Ajustes para emparejado difuso.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: (aiAvailable && !aiBusy) ? onAiReconcile : null,
+                    icon: aiBusy
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.auto_awesome_rounded, size: 18),
+                    label: const Text('Conciliar con IA'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _EditDraftSheet extends StatefulWidget {
@@ -528,14 +970,6 @@ class _EditDraftSheetState extends State<_EditDraftSheet> {
     _title.dispose();
     _note.dispose();
     super.dispose();
-  }
-
-  double? _parseAmount(String input) {
-    final raw = input.trim().replaceAll(' ', '');
-    if (raw.isEmpty) return null;
-    if (raw.contains(',') && raw.contains('.')) return double.tryParse(raw.replaceAll(',', ''));
-    if (raw.contains(',')) return double.tryParse(raw.replaceAll(',', '.'));
-    return double.tryParse(raw);
   }
 
   @override
@@ -634,7 +1068,7 @@ class _EditDraftSheetState extends State<_EditDraftSheet> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () {
-                  final amount = _parseAmount(_amount.text);
+                  final amount = parseAmountInput(_amount.text);
                   if (amount == null || amount <= 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Ingresa un monto válido')),

@@ -29,6 +29,19 @@ class DocumentsNotifier extends StateNotifier<List<NexoDocument>> {
 
   NexoDocument? byId(String id) => _repo.byId(id);
 
+  /// Flags a document as the reconciliation source of truth (or clears it) and
+  /// records the scope its delete sweep is bounded to.
+  void setSourceOfTruth(
+    String id,
+    bool enabled, {
+    String? accountId,
+    DateTime? from,
+    DateTime? to,
+  }) {
+    _repo.setSourceOfTruth(id, enabled, accountId: accountId, from: from, to: to);
+    load();
+  }
+
   /// Deletes the document, its staged drafts and the stored source file.
   Future<void> remove(String id) async {
     final doc = _repo.byId(id);

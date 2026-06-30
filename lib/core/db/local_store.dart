@@ -15,7 +15,7 @@ class LocalStore {
   static late final Database db;
 
   /// Current target schema version. Increment when adding a migration.
-  static const int _schemaVersion = 8;
+  static const int _schemaVersion = 9;
 
   static Future<void> init() async {
     final dir = await getApplicationSupportDirectory();
@@ -121,6 +121,7 @@ class LocalStore {
       if (current < 6) _migrateTo6(db);
       if (current < 7) _migrateTo7(db);
       if (current < 8) _migrateTo8(db);
+      if (current < 9) _migrateTo9(db);
       db.execute('PRAGMA user_version = $_schemaVersion');
       db.execute('COMMIT');
     } catch (e, st) {
@@ -372,5 +373,41 @@ class LocalStore {
     db.execute('CREATE INDEX IF NOT EXISTS idx_doctx_document ON document_transactions(document_id)');
     db.execute('CREATE INDEX IF NOT EXISTS idx_doctx_status ON document_transactions(status)');
     db.execute('CREATE INDEX IF NOT EXISTS idx_doctx_dedupe ON document_transactions(dedupe_hash)');
+  }
+
+  /// v9 — Documents become a reconciliation source of truth. Each staged draft
+  /// can be matched against an existing movement and carry a reconcile action
+  /// (`add`/`update`/`identical`/`delete`) plus the matched `match_tx_id`. A
+  /// document can be flagged the source of truth for a given account + date
+  /// range (`is_source_of_truth` + `scope_*`), which bounds which existing
+  /// movements a delete sweep may touch. All columns are additive/nullable so
+  /// existing v8 installs upgrade in place.
+  static void _migrateTo9(Database db) {
+    final docTxCols = db.select('PRAGMA table_info(document_transactions)');
+    bool hasDocTx(String name) => docTxCols.any((c) => (c['name'] as String) == name);
+    if (!hasDocTx('reconcile_action')) {
+      db.execute('ALTER TABLE document_transactions ADD COLUMN reconcile_action TEXT');
+    }
+    if (!hasDocTx('match_tx_id')) {
+      db.execute('ALTER TABLE document_transactions ADD COLUMN match_tx_id TEXT');
+    }
+    if (!hasDocTx('match_confidence')) {
+      db.execute('ALTER TABLE document_transactions ADD COLUMN match_confidence REAL');
+    }
+
+    final docCols = db.select('PRAGMA table_info(documents)');
+    bool hasDoc(String name) => docCols.any((c) => (c['name'] as String) == name);
+    if (!hasDoc('is_source_of_truth')) {
+      db.execute('ALTER TABLE documents ADD COLUMN is_source_of_truth INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!hasDoc('scope_account_id')) {
+      db.execute('ALTER TABLE documents ADD COLUMN scope_account_id TEXT');
+    }
+    if (!hasDoc('scope_from')) {
+      db.execute('ALTER TABLE documents ADD COLUMN scope_from TEXT');
+    }
+    if (!hasDoc('scope_to')) {
+      db.execute('ALTER TABLE documents ADD COLUMN scope_to TEXT');
+    }
   }
 }

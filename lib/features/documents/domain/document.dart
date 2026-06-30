@@ -60,6 +60,10 @@ class NexoDocument {
     this.engine,
     this.error,
     this.note,
+    this.isSourceOfTruth = false,
+    this.scopeAccountId,
+    this.scopeFrom,
+    this.scopeTo,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -89,6 +93,20 @@ class NexoDocument {
 
   /// Free note; for pasted-text documents this holds the raw text.
   final String? note;
+
+  /// When true, this document is treated as the source of truth for its scope:
+  /// reconciliation may propose deleting existing movements inside the scope
+  /// that the document does not contain.
+  final bool isSourceOfTruth;
+
+  /// Account the source-of-truth scope is bounded to (a delete sweep only
+  /// touches movements on this account). Null until reconciliation infers it.
+  final String? scopeAccountId;
+
+  /// Inclusive date range the document covers; bounds the delete sweep.
+  final DateTime? scopeFrom;
+  final DateTime? scopeTo;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -106,6 +124,10 @@ class NexoDocument {
     String? engine,
     String? error,
     String? note,
+    bool? isSourceOfTruth,
+    String? scopeAccountId,
+    DateTime? scopeFrom,
+    DateTime? scopeTo,
     DateTime? updatedAt,
   }) {
     return NexoDocument(
@@ -123,6 +145,10 @@ class NexoDocument {
       engine: engine ?? this.engine,
       error: error ?? this.error,
       note: note ?? this.note,
+      isSourceOfTruth: isSourceOfTruth ?? this.isSourceOfTruth,
+      scopeAccountId: scopeAccountId ?? this.scopeAccountId,
+      scopeFrom: scopeFrom ?? this.scopeFrom,
+      scopeTo: scopeTo ?? this.scopeTo,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -144,8 +170,15 @@ class NexoDocument {
       engine: r['engine'] as String?,
       error: r['error'] as String?,
       note: r['note'] as String?,
+      isSourceOfTruth: ((r['is_source_of_truth'] as num?)?.toInt() ?? 0) == 1,
+      scopeAccountId: r['scope_account_id'] as String?,
+      scopeFrom: _parseDate(r['scope_from'] as String?),
+      scopeTo: _parseDate(r['scope_to'] as String?),
       createdAt: DateTime.parse(r['created_at'] as String),
       updatedAt: DateTime.parse(r['updated_at'] as String),
     );
   }
+
+  static DateTime? _parseDate(String? v) =>
+      (v == null || v.isEmpty) ? null : DateTime.tryParse(v);
 }

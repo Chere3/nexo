@@ -35,7 +35,7 @@ void main() {
       }
 
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 8);
+      expect(version, 9);
       db.close();
     });
 
@@ -44,7 +44,7 @@ void main() {
       LocalStore.applySchema(db);
       LocalStore.applySchema(db);
       final version = db.select('PRAGMA user_version').first['user_version'] as int;
-      expect(version, 8);
+      expect(version, 9);
       db.close();
     });
 
@@ -81,7 +81,7 @@ void main() {
       expect(row['currency'], 'MXN');
       expect(row['kind'], 'standard');
       expect((row['paid'] as num).toInt(), 1);
-      expect(db.select('PRAGMA user_version').first['user_version'], 8);
+      expect(db.select('PRAGMA user_version').first['user_version'], 9);
       db.close();
     });
 
@@ -187,6 +187,26 @@ void main() {
         'created_at',
       ]) {
         expect(cols.contains(c), isTrue, reason: 'missing column $c');
+      }
+      db.close();
+    });
+
+    test('v9 adds reconciliation columns to documents + document_transactions', () {
+      final db = sqlite3.openInMemory();
+      LocalStore.applySchema(db);
+      final docCols = db
+          .select('PRAGMA table_info(documents)')
+          .map((r) => r['name'] as String)
+          .toSet();
+      for (final c in ['is_source_of_truth', 'scope_account_id', 'scope_from', 'scope_to']) {
+        expect(docCols.contains(c), isTrue, reason: 'missing documents.$c');
+      }
+      final txCols = db
+          .select('PRAGMA table_info(document_transactions)')
+          .map((r) => r['name'] as String)
+          .toSet();
+      for (final c in ['reconcile_action', 'match_tx_id', 'match_confidence']) {
+        expect(txCols.contains(c), isTrue, reason: 'missing document_transactions.$c');
       }
       db.close();
     });
