@@ -284,6 +284,38 @@ void main() {
     });
   });
 
+  group('DocumentReconciler.scopeRangeForAccount', () {
+    final drafts = [
+      _draft(id: 'd1', amount: 1, date: DateTime(2026, 5, 3), accountId: 'accB'),
+      _draft(id: 'd2', amount: 1, date: DateTime(2026, 5, 20), accountId: 'accB'),
+      _draft(id: 'd3', amount: 1, date: DateTime(2026, 6, 9), accountId: 'accC'),
+    ];
+
+    test('bounds the range to the given account', () {
+      final r = DocumentReconciler.scopeRangeForAccount(drafts, 'accB');
+      expect(r.from, DateTime(2026, 5, 3));
+      expect(r.to, DateTime(2026, 5, 20)); // accC's 9 jun excluded
+    });
+
+    test('returns nulls when no draft resolved that account (UI falls back to '
+        'the full document range)', () {
+      // e.g. OCR/AI statements that have dates but no resolved account id.
+      final unresolved = [
+        DocumentTransaction(
+          id: 'd1',
+          documentId: 'doc1',
+          title: 'X',
+          amount: 1,
+          date: DateTime(2026, 5, 3),
+          createdAt: DateTime(2026, 5, 3),
+        ),
+      ];
+      final r = DocumentReconciler.scopeRangeForAccount(unresolved, 'accB');
+      expect(r.from, isNull);
+      expect(r.to, isNull);
+    });
+  });
+
   group('update apply contract', () {
     test('overwriting a matched movement preserves kind / goal / paid', () {
       // Mirrors _applyReconciliation: copyWith only the statement-known fields.

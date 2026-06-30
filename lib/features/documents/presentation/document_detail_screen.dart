@@ -358,20 +358,16 @@ class _DocumentDetailScreenState extends ConsumerState<DocumentDetailScreen> {
       if (accountId == null) return; // cancelled
     }
 
-    // Bound the range to what the document says about THIS account — not the
-    // whole document's span across every account it touches.
-    final range = DocumentReconciler.scopeRangeForAccount(drafts, accountId);
-    if (range.from == null || range.to == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('El documento no tiene movimientos de esa cuenta.')),
-        );
-      }
-      return;
-    }
+    // Bound the range to what the document says about THIS account when its
+    // drafts resolved one (multi-account docs). When no draft resolved an
+    // account (common for OCR/AI statements with dates but no account id), the
+    // user just picked the account to attribute them to, so fall back to the
+    // document's full date range — both are non-null here (checked above).
+    final accountRange = DocumentReconciler.scopeRangeForAccount(drafts, accountId);
+    final from = accountRange.from ?? scope.from;
+    final to = accountRange.to ?? scope.to;
 
-    docsNotifier.setSourceOfTruth(doc.id, true,
-        accountId: accountId, from: range.from, to: range.to);
+    docsNotifier.setSourceOfTruth(doc.id, true, accountId: accountId, from: from, to: to);
     final updated = docsNotifier.byId(doc.id);
     if (updated != null) reconciler.reconcile(updated);
     if (mounted) {
