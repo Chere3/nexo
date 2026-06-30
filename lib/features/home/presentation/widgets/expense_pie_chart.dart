@@ -15,7 +15,7 @@ class ExpensePieChart extends StatelessWidget {
     final money = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     final grouped = <String, double>{};
-    for (final e in entries.where((e) => e.type == EntryType.expense)) {
+    for (final e in entries.where((e) => e.type == EntryType.expense && e.countsAsFlow)) {
       grouped[e.category] = (grouped[e.category] ?? 0) + toMxn(e.amount, e.currency);
     }
 

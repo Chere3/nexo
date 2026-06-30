@@ -18,12 +18,12 @@ class SpendingLineChart extends StatelessWidget {
     final values = <double>[];
     for (final day in days) {
       final income = entries
-          .where((e) => e.type == EntryType.income)
+          .where((e) => e.type == EntryType.income && e.countsAsFlow)
           .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
           .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
 
       final expense = entries
-          .where((e) => e.type == EntryType.expense)
+          .where((e) => e.type == EntryType.expense && e.countsAsFlow)
           .where((e) => e.date.year == day.year && e.date.month == day.month && e.date.day == day.day)
           .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
 

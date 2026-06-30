@@ -83,10 +83,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : entries.where((e) => e.account == _accountFilter).toList();
 
     final income = visibleEntries
-        .where((e) => e.type == EntryType.income)
+        .where((e) => e.type == EntryType.income && e.countsAsFlow)
         .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
     final expense = visibleEntries
-        .where((e) => e.type == EntryType.expense)
+        .where((e) => e.type == EntryType.expense && e.countsAsFlow)
         .fold<double>(0, (sum, e) => sum + toMxn(e.amount, e.currency));
     final balance = income - expense;
 
@@ -423,11 +423,15 @@ class _AnalyticsTab extends StatelessWidget {
     final activeOffset = hasSelectedPeriod ? selectedOffset : 0;
     final (start, end) = analyticsRangeToDatesWithOffset(range, activeOffset);
 
-    final filtered = entries.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end)).toList();
+    // Transfers (and unpaid/planned movements) never count toward
+    // income/expense totals — exclude them once at the source.
+    final flow = entries.where((e) => e.countsAsFlow).toList();
+
+    final filtered = flow.where((e) => !e.date.isBefore(start) && !e.date.isAfter(end)).toList();
 
     ({double income, double expense, double net}) periodTotals(AnalyticsRangePreset preset) {
       final (ps, pe) = analyticsRangeToDatesWithOffset(preset, 0);
-      final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
+      final period = flow.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
       final income = period
           .where((e) => e.type == EntryType.income)
           .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
@@ -457,7 +461,7 @@ class _AnalyticsTab extends StatelessWidget {
 
     ({int offset, String label, double income, double expense})? periodFeedItem(int offset) {
       final (ps, pe) = analyticsRangeToDatesWithOffset(range, offset);
-      final period = entries.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
+      final period = flow.where((e) => !e.date.isBefore(ps) && !e.date.isAfter(pe));
       final income = period
           .where((e) => e.type == EntryType.income)
           .fold<double>(0, (s, e) => s + toMxn(e.amount, e.currency));
@@ -484,7 +488,7 @@ class _AnalyticsTab extends StatelessWidget {
     final prevEnd = start.subtract(const Duration(seconds: 1));
     final prevStart = DateTime(prevEnd.year, prevEnd.month, prevEnd.day).subtract(Duration(days: days - 1));
 
-    final previous = entries.where((e) => !e.date.isBefore(prevStart) && !e.date.isAfter(prevEnd)).toList();
+    final previous = flow.where((e) => !e.date.isBefore(prevStart) && !e.date.isAfter(prevEnd)).toList();
 
     final prevExpense = previous
         .where((e) => e.type == EntryType.expense)

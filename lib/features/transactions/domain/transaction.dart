@@ -62,6 +62,12 @@ class FinanceEntry {
 
   bool get isTransfer => kind == EntryKind.transfer;
 
+  /// Realized, non-transfer movement — the basis for income/expense/balance.
+  /// Transfers only move money between accounts, so they must never be summed
+  /// as income or expense (that would double-count card payments and inflate
+  /// totals with internal moves).
+  bool get countsAsFlow => paid && kind != EntryKind.transfer;
+
   FinanceEntry copyWith({
     String? id,
     String? title,

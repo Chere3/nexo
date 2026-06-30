@@ -283,7 +283,7 @@ final transactionsProvider = StateNotifierProvider<TransactionsNotifier, List<Fi
 );
 
 /// Realized, non-transfer movements — the basis for income/expense/balance.
-bool _countsAsFlow(FinanceEntry e) => e.paid && e.kind != EntryKind.transfer;
+bool _countsAsFlow(FinanceEntry e) => e.countsAsFlow;
 
 final totalIncomeProvider = Provider<double>((ref) {
   return ref
